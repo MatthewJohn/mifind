@@ -1,0 +1,283 @@
+package filesystem
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/yourname/mifind/internal/provider"
+	"github.com/yourname/mifind/internal/types"
+)
+
+// Provider implements the provider interface for filesystem data.
+// It connects to a filesystem-api service to search and browse files.
+type Provider struct {
+	provider.BaseProvider
+	client *Client
+	url    string
+	apiKey string
+}
+
+// NewProvider creates a new filesystem provider.
+func NewProvider() *Provider {
+	return &Provider{
+		BaseProvider: *provider.NewBaseProvider(provider.ProviderMetadata{
+			Name:        "filesystem",
+			Description: "Filesystem provider via filesystem-api",
+			ConfigSchema: map[string]provider.ConfigField{
+				"url": {
+					Type:        "string",
+					Required:    true,
+					Description: "URL of the filesystem-api service",
+				},
+				"api_key": {
+					Type:        "string",
+					Required:    false,
+					Description: "API key for authentication",
+				},
+			},
+		}),
+	}
+}
+
+// Name returns the provider name.
+func (p *Provider) Name() string {
+	return "filesystem"
+}
+
+// Initialize sets up the filesystem provider with the given configuration.
+func (p *Provider) Initialize(ctx context.Context, config map[string]any) error {
+	url, ok := config["url"].(string)
+	if !ok || url == "" {
+		return provider.NewProviderError(provider.ErrorTypeConfig, "url is required", nil)
+	}
+
+	p.url = url
+
+	var apiKey string
+	if ak, ok := config["api_key"].(string); ok {
+		apiKey = ak
+	}
+	p.apiKey = apiKey
+
+	// Create HTTP client
+	p.client = NewClient(p.url, p.apiKey)
+
+	// Test connection
+	health, err := p.client.Health(ctx)
+	if err != nil {
+		return provider.NewProviderError(provider.ErrorTypeAuth, "failed to connect to filesystem-api", err)
+	}
+
+	if health.Status != "ok" {
+		return provider.NewProviderError(provider.ErrorTypeAuth, fmt.Sprintf("filesystem-api not healthy: %s", health.Status), nil)
+	}
+
+	return nil
+}
+
+// Discover performs a full discovery of all files.
+// For filesystem provider, we return an empty slice since discovery
+// should be done incrementally via the filesystem-api.
+func (p *Provider) Discover(ctx context.Context) ([]types.Entity, error) {
+	// Filesystem discovery is expensive - use DiscoverSince for incremental updates
+	// Return empty slice for full discovery
+	return []types.Entity{}, nil
+}
+
+// DiscoverSince performs incremental discovery since the given timestamp.
+func (p *Provider) DiscoverSince(ctx context.Context, since time.Time) ([]types.Entity, error) {
+	// Search for all files modified since the given time
+	// This requires filesystem-api to support time-based filtering
+	// For now, return empty
+	return []types.Entity{}, nil
+}
+
+// Hydrate retrieves full details of a file by ID.
+func (p *Provider) Hydrate(ctx context.Context, id string) (types.Entity, error) {
+	// Extract file ID from entity ID
+	fileID := FromEntityID(id)
+
+	// Get file from API
+	resp, err := p.client.GetFile(ctx, fileID)
+	if err != nil {
+		return types.Entity{}, provider.ErrNotFound
+	}
+
+	return p.fileToEntity(resp.File), nil
+}
+
+// GetRelated retrieves entities related to a file.
+func (p *Provider) GetRelated(ctx context.Context, id string, relType string) ([]types.Entity, error) {
+	fileID := FromEntityID(id)
+
+	// Get the file to find related entities
+	resp, err := p.client.GetFile(ctx, fileID)
+	if err != nil {
+		return nil, err
+	}
+
+	file := resp.File
+
+	switch relType {
+	case types.RelFolder, types.RelParent:
+		// Return parent folder
+		if file.Path == "" || file.Path == "/" {
+			return []types.Entity{}, nil
+		}
+
+		parentPath := filepath.Dir(file.Path)
+		if parentPath == file.Path {
+			return []types.Entity{}, nil
+		}
+
+		// Browse parent directory
+		browseResp, err := p.client.Browse(ctx, parentPath)
+		if err != nil {
+			return nil, err
+		}
+
+		var entities []types.Entity
+		for _, f := range browseResp.Files {
+			entities = append(entities, p.fileToEntity(f))
+		}
+		return entities, nil
+
+	case types.RelChild:
+		// Return children if this is a directory
+		if !file.IsDir {
+			return []types.Entity{}, nil
+		}
+
+		browseResp, err := p.client.Browse(ctx, file.Path)
+		if err != nil {
+			return nil, err
+		}
+
+		var entities []types.Entity
+		for _, f := range browseResp.Files {
+			entities = append(entities, p.fileToEntity(f))
+		}
+		return entities, nil
+
+	case types.RelSibling:
+		// Return siblings (files in same directory)
+		parentPath := filepath.Dir(file.Path)
+		if parentPath == "" || parentPath == file.Path {
+			return []types.Entity{}, nil
+		}
+
+		browseResp, err := p.client.Browse(ctx, parentPath)
+		if err != nil {
+			return nil, err
+		}
+
+		var entities []types.Entity
+		for _, f := range browseResp.Files {
+			// Skip self
+			if ToEntityID(f.ID) != id {
+				entities = append(entities, p.fileToEntity(f))
+			}
+		}
+		return entities, nil
+
+	default:
+		// Unknown relationship type
+		return []types.Entity{}, nil
+	}
+}
+
+// Search performs a search query on the filesystem.
+func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]types.Entity, error) {
+	// Build search request
+	searchReq := SearchRequest{
+		Query:   query.Query,
+		Filters: make(map[string]any),
+		Limit:   query.Limit,
+		Offset:  query.Offset,
+	}
+
+	// Add filters
+	for k, v := range query.Filters {
+		searchReq.Filters[k] = v
+	}
+
+	// Add type filter
+	if query.Type != "" {
+		// Convert mifind type to file extension filter
+		searchReq.Filters["type"] = query.Type
+	}
+
+	// Execute search
+	result, err := p.client.Search(ctx, searchReq)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert files to entities
+	entities := make([]types.Entity, len(result.Files))
+	for i, file := range result.Files {
+		entities[i] = p.fileToEntity(file)
+	}
+
+	return entities, nil
+}
+
+// SupportsIncremental returns true - filesystem provider supports incremental updates.
+func (p *Provider) SupportsIncremental() bool {
+	return true
+}
+
+// Shutdown shuts down the filesystem provider.
+func (p *Provider) Shutdown(ctx context.Context) error {
+	// No cleanup needed
+	return nil
+}
+
+// fileToEntity converts a File to an Entity.
+func (p *Provider) fileToEntity(file File) types.Entity {
+	entityID := ToEntityID(file.ID)
+	entityType := FileTypeToMifindType(file.Extension, file.IsDir)
+
+	entity := types.NewEntity(entityID, entityType, p.Name(), file.Name)
+
+	entity.AddAttribute(types.AttrPath, file.Path)
+	entity.AddAttribute(types.AttrSize, file.Size)
+	entity.AddAttribute(types.AttrExtension, strings.TrimPrefix(file.Extension, "."))
+	entity.AddAttribute(types.AttrMimeType, file.MimeType)
+	entity.AddAttribute(types.AttrModified, file.Modified.Unix())
+
+	if !file.Created.IsZero() {
+		entity.AddAttribute(types.AttrCreated, file.Created.Unix())
+	}
+
+	// Add directory-specific attributes
+	if file.IsDir {
+		entity.AddAttribute("is_dir", true)
+	}
+
+	// Add search tokens
+	entity.AddSearchToken(file.Name)
+	entity.AddSearchToken(file.Extension)
+	entity.AddSearchToken(file.Path)
+	entity.AddSearchToken(file.MimeType)
+
+	// Add parent folder relationship
+	if file.Path != "" && file.Path != "/" {
+		parentPath := filepath.Dir(file.Path)
+		if parentPath != file.Path {
+			// Use parent path as relationship target ID
+			// In a real implementation, we'd need to resolve this to an actual entity ID
+			entity.AddRelationship(types.RelParent, "dir:"+parentPath)
+		}
+	}
+
+	// Add metadata from the API response
+	for k, v := range file.Metadata {
+		entity.AddAttribute(k, v)
+	}
+
+	return entity
+}
