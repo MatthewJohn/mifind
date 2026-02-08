@@ -167,6 +167,8 @@ Environment variables:
 | mifind | `MIFIND_` | `MIFIND_HTTP_PORT=8080` |
 | filesystem-api | `MIFIND_FILESYSTEM_` | `MIFIND_FILESYSTEM_MEILISEARCH_URL=http://localhost:7700` |
 
+**API Docs:** See [docs/API.md](docs/API.md) for complete API reference.
+
 ---
 
 ## Status
