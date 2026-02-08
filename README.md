@@ -41,7 +41,7 @@ Search across multiple personal systems with a single query.
 ### Typed entities
 Everything in mifind has a type, with a strong hierarchy. Example:
 
-\`\`\`text
+```text
 Item
 └── File
     ├── MediaFile
@@ -52,7 +52,7 @@ Item
 └── Media
     ├── Movie
     └── Episode
-\`\`\`
+```
 
 Types define which attributes and filters make sense.
 
@@ -130,28 +130,34 @@ mifind helps you *find* things — it doesn't own them.
 
 ## Running
 
+### Setup
+
+```bash
+# Copy example configs (first time or when updating)
+cp config/examples/mifind.yaml config/
+cp config/examples/filesystem-api.yaml config/
+
+# Edit configs to set your paths, ports, etc.
+vim config/mifind.yaml
+vim config/filesystem-api.yaml
+```
+
 ### mifind API
 
 ```bash
-# Start the main API (port 8080)
 go run cmd/mifind/main.go
 ```
 
 ### filesystem-api
 
-The filesystem provider requires a separate service:
-
 ```bash
-# 1. Start Meilisearch (port 7700)
+# 1. Start Meilisearch
 docker run -p 7700:7700 getmeili/meilisearch
 
 # 2. Configure scan paths in config/filesystem-api.yaml
-#    Set scan.paths to directories you want to index
 
-# 3. Start filesystem-api (port 8082)
+# 3. Start filesystem-api
 go run cmd/filesystem-api/main.go
-
-# 4. Configure mifind to use the filesystem provider
 ```
 
 Environment variables:

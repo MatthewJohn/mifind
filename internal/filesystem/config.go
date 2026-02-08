@@ -56,9 +56,10 @@ func LoadConfig() (*Config, error) {
 	// Set defaults
 	setDefaults()
 
-	// Read config file
+	// Read config file - check config/ dir first, then fallback locations
 	viper.SetConfigName("filesystem-api")
 	viper.SetConfigType("yaml")
+	viper.AddConfigPath("config")
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("/etc/mifind")
 	viper.AddConfigPath("$HOME/.mifind")

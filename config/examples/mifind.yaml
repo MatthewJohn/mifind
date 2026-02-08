@@ -1,0 +1,11 @@
+# mifind API Configuration
+
+server:
+  port: 8080
+  read_timeout: 30
+  write_timeout: 30
+
+# Mock provider for testing
+mock:
+  enabled: true
+  entity_count: 10

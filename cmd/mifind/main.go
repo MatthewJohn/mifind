@@ -140,9 +140,10 @@ func loadConfig() (*Config, error) {
 	viper.SetDefault("mock_enabled", true)
 	viper.SetDefault("mock_entity_count", 10)
 
-	// Read config file
-	viper.SetConfigName("config")
+	// Read config file - check config/ dir first, then fallback locations
+	viper.SetConfigName("mifind")
 	viper.SetConfigType("yaml")
+	viper.AddConfigPath("config")
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("/etc/mifind")
 	viper.AddConfigPath("$HOME/.mifind")

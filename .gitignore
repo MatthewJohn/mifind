@@ -1,0 +1,38 @@
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/mifind
+/mifind-mcp
+/filesystem-api
+
+# Test binary
+*.test
+
+# Output files
+*.out
+
+# Go workspace
+/go.work
+
+# Local config files (use config/examples/*.yaml as templates)
+config/*.yaml
+!config/examples/*.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.ms
+data.ms/
+TODO.md

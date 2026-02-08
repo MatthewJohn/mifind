@@ -1,5 +1,4 @@
 # filesystem-api Service Configuration
-# This service scans local directories and provides full-text search via Meilisearch
 
 server:
   port: 8082
@@ -12,10 +11,8 @@ meilisearch:
   index_name: "filesystem"
 
 scan:
-  # Paths to scan (absolute paths)
   paths:
     - /home/user/Documents
-  # Directory names to exclude (matched against directory name only)
   excluded_dirs:
     - ".git"
     - "node_modules"
@@ -27,13 +24,16 @@ scan:
     - "dist"
     - "__pycache__"
     - ".pytest_cache"
-  # File patterns to exclude (glob patterns)
+    - "vendor"
+    - "node_modules"
+    - ".cache"
   exclude_patterns:
     - "*.tmp"
     - ".*"
     - "*.swp"
     - "*.bak"
     - "*.log"
+    - "*.pyc"
   follow_symlinks: false
   max_depth: 20
 
