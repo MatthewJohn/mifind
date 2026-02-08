@@ -136,17 +136,9 @@ func loadConfig() (*Config, error) {
 	return &config, nil
 }
 
-// registerCoreTypes registers core entity types.
-// This is a copy of the function from cmd/mifind/main.go.
-// In a real implementation, this would be shared code.
+// registerCoreTypes registers core entity types from the central type definitions.
 func registerCoreTypes(registry *types.TypeRegistry, logger zerolog.Logger) {
-	// Register root types
-	registry.Register(types.TypeDefinition{
-		Name:        "item",
-		Description: "Base type for all items",
-		Attributes:  make(map[string]types.AttributeDef),
-		Filters:     []types.FilterDefinition{},
-	})
+	types.RegisterCoreTypes(registry)
 
 	registry.Register(types.TypeDefinition{
 		Name:        "media",

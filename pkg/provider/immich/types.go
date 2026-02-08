@@ -1,6 +1,10 @@
 package immich
 
-import "time"
+import (
+	"time"
+
+	"github.com/yourname/mifind/internal/types"
+)
 
 // API types for the Immich API responses.
 // See https://github.com/immich-app/immich/tree/main/server/api-openapi
@@ -119,14 +123,14 @@ const (
 	EntityTypeVideo = "VIDEO"
 )
 
-// FileTypeToMifindType converts an Immich asset type to a mifind type.
+// FileTypeToMifindType converts an Immich asset type to a mifind core type.
 func FileTypeToMifindType(assetType string) string {
 	switch assetType {
 	case EntityTypePhoto:
-		return "media.asset.photo"
+		return types.TypeMediaAssetPhoto
 	case EntityTypeVideo:
-		return "media.asset.video"
+		return types.TypeMediaAssetVideo
 	default:
-		return "media.asset"
+		return types.TypeMediaAsset
 	}
 }

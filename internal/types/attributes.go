@@ -63,6 +63,13 @@ const (
 	// Smart search/ML attributes
 	AttrSmartInfo = "smart_info" // ML-generated tags/info
 	AttrScore     = "score"      // Relevance/confidence score
+
+	// General attributes
+	AttrName       = "name"        // Display name
+	AttrBirthDate  = "birth_date"  // Birth date
+	AttrIsFavorite = "is_favorite" // Favorite flag
+	AttrIsArchived = "is_archived" // Archived flag
+	AttrAssetCount = "asset_count" // Number of assets in collection
 )
 
 // GPS represents a geographic coordinate.

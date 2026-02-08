@@ -1,6 +1,10 @@
 package filesystem
 
-import "time"
+import (
+	"time"
+
+	"github.com/yourname/mifind/internal/types"
+)
 
 // API types for the filesystem-api service responses.
 
@@ -54,42 +58,42 @@ type SearchRequest struct {
 	Offset  int            `json:"offset,omitempty"`
 }
 
-// FileTypeToMifindType converts a file extension to a mifind type.
+// FileTypeToMifindType converts a file extension to a mifind core type.
 func FileTypeToMifindType(extension string, isDir bool) string {
 	if isDir {
-		return "collection.folder"
+		return types.TypeCollectionFolder
 	}
 
 	switch extension {
 	case ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".tiff", ".heic", ".avif":
-		return "file.media.image"
+		return types.TypeFileMediaImage
 	case ".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv", ".wmv", ".m4v":
-		return "file.media.video"
+		return types.TypeFileMediaVideo
 	case ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".wma", ".opus":
-		return "file.media.music"
+		return types.TypeFileMediaMusic
 	case ".pdf":
-		return "file.document.pdf"
+		return types.TypeFileDocumentPDF
 	case ".doc", ".docx":
-		return "file.document.word"
+		return types.TypeFileDocumentWord
 	case ".xls", ".xlsx":
-		return "file.document.spreadsheet"
+		return types.TypeFileDocumentSheet
 	case ".ppt", ".pptx":
-		return "file.document.presentation"
+		return types.TypeFileDocumentPres
 	case ".txt", ".md", ".rst", ".log":
-		return "file.document.text"
+		return types.TypeFileDocumentText
 	case ".html", ".htm":
-		return "file.document.html"
+		return types.TypeFileDocumentHTML
 	case ".css", ".scss", ".sass", ".less":
-		return "file.document.code.css"
+		return types.TypeFileDocumentCode
 	case ".js", ".jsx", ".ts", ".tsx":
-		return "file.document.code.javascript"
+		return types.TypeFileDocumentCode
 	case ".py", ".rb", ".go", ".rs", ".java", ".c", ".cpp", ".h", ".hpp":
-		return "file.document.code"
+		return types.TypeFileDocumentCode
 	case ".json", ".xml", "yaml", ".yml", ".toml", ".ini", ".cfg":
-		return "file.document.config"
+		return types.TypeFileDocumentCode
 	case ".zip", ".tar", ".gz", ".rar", ".7z":
-		return "file.archive"
+		return types.TypeFileArchive
 	default:
-		return "file"
+		return types.TypeFile
 	}
 }
