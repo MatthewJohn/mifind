@@ -275,6 +275,8 @@ The filesystem provider consists of two parts:
 
 ## Configuration
 
+### mifind Configuration (`config.yaml`)
+
 ```yaml
 server:
   http_port: 8080
@@ -286,13 +288,39 @@ cache:
 
 providers:
   filesystem:
-    paths:
-      - /home/user/Documents
-    excluded_dirs: [".git", "node_modules"]
+    url: "http://localhost:8082"  # Filesystem API endpoint
+    api_key: "${FILESYSTEM_API_KEY}"
 
   immich:
     url: "https://immich.example.com"
     api_key: "${IMMICH_API_KEY}"
+```
+
+### filesystem-api Configuration (`filesystem-api-config.yaml`)
+
+```yaml
+server:
+  port: 8082
+
+meilisearch:
+  url: "http://localhost:7700"
+  api_key: "${MEILISEARCH_API_KEY}"  # Optional
+  index_name: "filesystem"
+
+scan:
+  paths:
+    - /home/user/Documents
+    - /home/user/Media
+  excluded_dirs:
+    - ".git"
+    - "node_modules"
+    - ".cache"
+  exclude_patterns:
+    - "*.tmp"
+    - ".*"
+
+api:
+  api_key: "${FILESYSTEM_API_KEY}"  # For authentication from mifind
 ```
 
 ---
