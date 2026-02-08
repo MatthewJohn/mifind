@@ -1,13 +1,28 @@
-import { useMemo } from 'react'
+import { useMemo, useCallback, useEffect } from 'react'
 import { useSearchStore } from '@/stores/searchStore'
 import { useSearch } from '@/hooks/useSearch'
 import { SearchResults } from '@/components/search/SearchResults'
 import { FilterSidebar } from '@/components/search/FilterSidebar'
 import { EntityModal } from '@/components/entity/EntityModal'
+import { Pagination } from '@/components/search/Pagination'
 import { SearchRequest } from '@/types/api'
 
 export function SearchPage() {
-  const { query, selectedEntity, setSelectedEntity, selectedTypes, filters } = useSearchStore()
+  const {
+    query,
+    currentPage,
+    setCurrentPage,
+    resultsPerPage,
+    selectedEntity,
+    setSelectedEntity,
+    selectedTypes,
+    filters
+  } = useSearchStore()
+
+  // Reset to page 1 when query or filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [query, selectedTypes, filters, setCurrentPage])
 
   // Build search request from store state
   const searchRequest: SearchRequest | null = useMemo(() => {
@@ -15,14 +30,13 @@ export function SearchPage() {
 
     const request: SearchRequest = {
       query: query.trim(),
-      page: 1,
-      perPage: 24,
+      page: currentPage,
+      perPage: resultsPerPage,
     }
 
     // Add type filters
     if (selectedTypes.length > 0) {
       request.filters = [
-        ...(request.filters || []),
         ...selectedTypes.map(type => ({
           key: 'type',
           operator: 'eq' as const,
@@ -33,17 +47,28 @@ export function SearchPage() {
 
     // Add attribute filters
     if (filters.length > 0) {
-      request.filters = [...(request.filters || []), ...filters]
+      request.filters = [
+        ...(request.filters || []),
+        ...filters
+      ]
     }
 
     return request
-  }, [query, selectedTypes, filters])
+  }, [query, currentPage, resultsPerPage, selectedTypes, filters])
 
   const { data, isLoading, error } = useSearch(searchRequest)
 
-  const handleEntityClick = (entity: any) => {
+  const handleEntityClick = useCallback((entity: any) => {
     setSelectedEntity(entity)
-  }
+  }, [setSelectedEntity])
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page)
+    // Scroll to top of results
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [setCurrentPage])
+
+  const totalPages = data ? Math.ceil(data.total_count / resultsPerPage) : 0
 
   return (
     <div className="flex gap-6">
@@ -65,6 +90,11 @@ export function SearchPage() {
                       ({data.duration_ms.toFixed(0)}ms)
                     </span>
                   )}
+                  {totalPages > 1 && (
+                    <span className="text-gray-400 ml-2">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                  )}
                 </>
               ) : null}
             </p>
@@ -76,6 +106,20 @@ export function SearchPage() {
           loading={isLoading}
           onEntityClick={handleEntityClick}
         />
+
+        {/* Pagination */}
+        {data && data.total_count > 0 && (
+          <div className="mt-6">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalResults={data.total_count}
+              resultsPerPage={resultsPerPage}
+              onPageChange={handlePageChange}
+              isLoading={isLoading}
+            />
+          </div>
+        )}
 
         {!query.trim() && (
           <div className="text-center py-16">

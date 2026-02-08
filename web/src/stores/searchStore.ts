@@ -5,6 +5,10 @@ interface SearchStore {
   query: string
   setQuery: (query: string) => void
 
+  currentPage: number
+  setCurrentPage: (page: number) => void
+  resultsPerPage: number
+
   selectedEntity: Entity | null
   setSelectedEntity: (entity: Entity | null) => void
 
@@ -30,6 +34,10 @@ interface SearchStore {
 export const useSearchStore = create<SearchStore>((set) => ({
   query: '',
   setQuery: (query) => set({ query }),
+
+  currentPage: 1,
+  setCurrentPage: (page) => set({ currentPage: page }),
+  resultsPerPage: 24,
 
   selectedEntity: null,
   setSelectedEntity: (entity) => set({ selectedEntity: entity }),
