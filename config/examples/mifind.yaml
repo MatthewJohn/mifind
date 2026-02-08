@@ -9,3 +9,13 @@ server:
 mock:
   enabled: true
   entity_count: 10
+
+# Filesystem providers (commented out - enable as needed)
+# Each instance connects to a filesystem-api service
+# filesystem_providers:
+#   - instance_id: "docs"
+#     url: "http://localhost:8082"
+#     api_key: ""
+#   - instance_id: "media"
+#     url: "http://localhost:8083"
+#     api_key: ""

@@ -17,6 +17,7 @@ import (
 	"github.com/yourname/mifind/internal/api"
 	"github.com/yourname/mifind/internal/provider"
 	"github.com/yourname/mifind/internal/provider/mock"
+	"github.com/yourname/mifind/pkg/provider/filesystem"
 	"github.com/yourname/mifind/internal/search"
 	"github.com/yourname/mifind/internal/types"
 )
@@ -54,6 +55,15 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to register mock provider")
 	}
 
+	// Register filesystem provider
+	if err := providerRegistry.Register(provider.ProviderMetadata{
+		Name:        "filesystem",
+		Description: "Filesystem provider via filesystem-api",
+		Factory:     func() provider.Provider { return filesystem.NewProvider() },
+	}); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to register filesystem provider")
+	}
+
 	// Initialize provider manager
 	providerManager := provider.NewManager(providerRegistry, &logger)
 
@@ -67,6 +77,22 @@ func main() {
 			logger.Warn().Err(err).Msg("Failed to initialize mock provider")
 		} else {
 			logger.Info().Int("count", config.MockEntityCount).Msg("Mock provider initialized")
+		}
+	}
+
+	// Initialize filesystem providers
+	for _, fsConfig := range config.FilesystemProviders {
+		providerConfig := map[string]any{
+			"instance_id": fsConfig.InstanceID,
+			"url":         fsConfig.URL,
+		}
+		if fsConfig.APIKey != "" {
+			providerConfig["api_key"] = fsConfig.APIKey
+		}
+		if err := providerManager.Initialize(context.Background(), "filesystem", providerConfig); err != nil {
+			logger.Warn().Err(err).Str("instance", fsConfig.InstanceID).Msg("Failed to initialize filesystem provider")
+		} else {
+			logger.Info().Str("instance", fsConfig.InstanceID).Str("url", fsConfig.URL).Msg("Filesystem provider initialized")
 		}
 	}
 
@@ -128,9 +154,17 @@ func main() {
 
 // Config holds the application configuration.
 type Config struct {
-	HTTPPort        int  `mapstructure:"http_port"`
-	MockEnabled     bool `mapstructure:"mock_enabled"`
-	MockEntityCount int  `mapstructure:"mock_entity_count"`
+	HTTPPort            int                      `mapstructure:"http_port"`
+	MockEnabled         bool                     `mapstructure:"mock_enabled"`
+	MockEntityCount     int                      `mapstructure:"mock_entity_count"`
+	FilesystemProviders []FilesystemProviderConfig `mapstructure:"filesystem_providers"`
+}
+
+// FilesystemProviderConfig holds configuration for a filesystem provider instance.
+type FilesystemProviderConfig struct {
+	InstanceID string `mapstructure:"instance_id"`
+	URL        string `mapstructure:"url"`
+	APIKey     string `mapstructure:"api_key"`
 }
 
 // loadConfig loads configuration from file and environment.
