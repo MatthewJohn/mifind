@@ -1,0 +1,45 @@
+# filesystem-api Service Configuration
+# This service scans local directories and provides full-text search via Meilisearch
+
+server:
+  port: 8082
+  read_timeout: 30
+  write_timeout: 30
+
+meilisearch:
+  url: "http://localhost:7700"
+  api_key: ""
+  index_name: "filesystem"
+
+scan:
+  # Paths to scan (absolute paths)
+  paths:
+    - /home/user/Documents
+  # Directory names to exclude (matched against directory name only)
+  excluded_dirs:
+    - ".git"
+    - "node_modules"
+    - ".venv"
+    - "venv"
+    - ".env"
+    - "target"
+    - "build"
+    - "dist"
+    - "__pycache__"
+    - ".pytest_cache"
+  # File patterns to exclude (glob patterns)
+  exclude_patterns:
+    - "*.tmp"
+    - ".*"
+    - "*.swp"
+    - "*.bak"
+    - "*.log"
+  follow_symlinks: false
+  max_depth: 20
+
+api:
+  api_key: ""
+  cors_enabled: true
+
+logging:
+  level: info
