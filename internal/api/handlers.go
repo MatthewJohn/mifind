@@ -75,10 +75,8 @@ func (h *Handlers) RegisterRoutes(router *mux.Router) {
 	// Health check
 	apiRouter.HandleFunc("/health", h.Health).Methods("GET")
 
-	// Root index
-	router.HandleFunc("/", h.Index).Methods("GET")
-
 	// Serve static files (React UI) - must be last as it catches all routes
+	// The Index handler is no longer needed at root since UI serves there
 	router.PathPrefix("/").Handler(http.FileServer(SPAFileSystem()))
 }
 
