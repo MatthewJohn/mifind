@@ -102,6 +102,57 @@ func BuildEntityID(providerType, instanceID, entityID string) EntityID {
 	return NewEntityID(providerType, instanceID, entityID)
 }
 
+// FilterCapability describes how a provider supports filtering on a specific attribute.
+// This is runtime-discoverable and provider-specific, allowing each provider to declare
+// which attributes can be filtered on and how.
+//
+// This separates the attribute schema (what exists) from filter capability (what can be filtered).
+// Core types define what attributes ARE available, while providers declare what CAN be filtered.
+type FilterCapability struct {
+	// Type is the attribute type
+	Type types.AttributeType
+
+	// SupportsEq indicates if equality filtering is supported (e.g., "extension=jpg")
+	SupportsEq bool
+
+	// SupportsNeq indicates if inequality filtering is supported (e.g., "extension!=jpg")
+	SupportsNeq bool
+
+	// SupportsRange indicates if range filtering is supported (e.g., "size>1000", "width<1920")
+	SupportsRange bool
+
+	// SupportsGlob indicates if glob pattern matching is supported (e.g., "path=*.jpg")
+	SupportsGlob bool
+
+	// SupportsContains indicates if substring matching is supported (e.g., "title~vacation")
+	SupportsContains bool
+
+	// Min is the minimum value for range filters (nil if no minimum)
+	Min *float64
+
+	// Max is the maximum value for range filters (nil if no maximum)
+	Max *float64
+
+	// Options are the valid options for select/multi-select attributes
+	// (nil if not an enumerated type)
+	Options []FilterOption
+
+	// Description is a human-readable description of this filter
+	Description string
+}
+
+// FilterOption represents a single option for enumerated type filters.
+type FilterOption struct {
+	// Value is the option value
+	Value string
+
+	// Label is the human-readable label
+	Label string
+
+	// Count is the number of entities with this value (optional, for faceted search)
+	Count int
+}
+
 // Provider defines the interface that all data source providers must implement.
 // Providers are responsible for discovering, searching, and hydrating entities
 // from their respective data sources.
@@ -148,6 +199,12 @@ type Provider interface {
 	// Only called if SupportsIncremental returns true.
 	// Returns entities that were created or modified since the cutoff time.
 	DiscoverSince(ctx context.Context, since time.Time) ([]types.Entity, error)
+
+	// FilterCapabilities returns the filter capabilities for each attribute.
+	// This is runtime-discoverable and provider-specific, allowing each provider
+	// to declare which attributes can be filtered on and how.
+	// Returns a map of attribute name to FilterCapability.
+	FilterCapabilities(ctx context.Context) (map[string]FilterCapability, error)
 
 	// Shutdown gracefully shuts down the provider.
 	// Called when the provider is being unregistered or the service is stopping.
@@ -443,6 +500,12 @@ func (b *BaseProvider) SupportsIncremental() bool {
 // Providers that support incremental updates should override this.
 func (b *BaseProvider) DiscoverSince(ctx context.Context, since time.Time) ([]types.Entity, error) {
 	return nil, ErrIncrementalNotSupported
+}
+
+// FilterCapabilities returns an empty map by default.
+// Providers that support filtering should override this to declare their capabilities.
+func (b *BaseProvider) FilterCapabilities(ctx context.Context) (map[string]FilterCapability, error) {
+	return make(map[string]FilterCapability), nil
 }
 
 // Shutdown is a no-op by default.

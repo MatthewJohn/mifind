@@ -217,6 +217,74 @@ func (m *MockProvider) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// FilterCapabilities returns the filter capabilities for the mock provider.
+// Mock provider supports most common filters for testing.
+func (m *MockProvider) FilterCapabilities(ctx context.Context) (map[string]provider.FilterCapability, error) {
+	return map[string]provider.FilterCapability{
+		types.AttrType: {
+			Type:        types.AttributeTypeString,
+			SupportsEq:  true,
+			SupportsNeq: true,
+			Options: []provider.FilterOption{
+				{Value: types.TypeFileDocument, Label: "Document"},
+				{Value: types.TypeFileMediaVideo, Label: "Video"},
+				{Value: types.TypeFileMediaImage, Label: "Image"},
+				{Value: types.TypeMediaAssetPhoto, Label: "Photo"},
+				{Value: types.TypeMediaAssetVideo, Label: "Video Asset"},
+			},
+			Description: "Entity type",
+		},
+		types.AttrPath: {
+			Type:             types.AttributeTypeString,
+			SupportsEq:       true,
+			SupportsContains: true,
+			Description:      "File path",
+		},
+		types.AttrSize: {
+			Type:          types.AttributeTypeInt64,
+			SupportsEq:    true,
+			SupportsNeq:   true,
+			SupportsRange: true,
+			Description:   "Size in bytes",
+		},
+		types.AttrExtension: {
+			Type:        types.AttributeTypeString,
+			SupportsEq:  true,
+			SupportsNeq: true,
+			Description: "File extension",
+		},
+		types.AttrDuration: {
+			Type:          types.AttributeTypeInt64,
+			SupportsEq:    true,
+			SupportsRange: true,
+			Description:   "Duration in seconds",
+		},
+		types.AttrWidth: {
+			Type:          types.AttributeTypeInt,
+			SupportsEq:    true,
+			SupportsRange: true,
+			Description:   "Width in pixels",
+		},
+		types.AttrHeight: {
+			Type:          types.AttributeTypeInt,
+			SupportsEq:    true,
+			SupportsRange: true,
+			Description:   "Height in pixels",
+		},
+		types.AttrCamera: {
+			Type:             types.AttributeTypeString,
+			SupportsEq:       true,
+			SupportsContains: true,
+			Description:      "Camera make/model",
+		},
+		types.AttrGPS: {
+			Type:          types.AttributeTypeGPS,
+			SupportsRange: true,
+			Description:   "GPS coordinates",
+		},
+	}, nil
+}
+
 // AddEntity adds a custom entity to the mock provider.
 func (m *MockProvider) AddEntity(entity types.Entity) {
 	m.mu.Lock()

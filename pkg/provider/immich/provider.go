@@ -227,6 +227,82 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// FilterCapabilities returns the filter capabilities for the Immich provider.
+func (p *Provider) FilterCapabilities(ctx context.Context) (map[string]provider.FilterCapability, error) {
+	return map[string]provider.FilterCapability{
+		types.AttrType: {
+			Type:        types.AttributeTypeString,
+			SupportsEq:  true,
+			SupportsNeq: true,
+			Options: []provider.FilterOption{
+				{Value: types.TypeMediaAssetPhoto, Label: "Photo"},
+				{Value: types.TypeMediaAssetVideo, Label: "Video"},
+			},
+			Description: "Media asset type",
+		},
+		types.AttrIsFavorite: {
+			Type:       types.AttributeTypeBool,
+			SupportsEq: true,
+			Options: []provider.FilterOption{
+				{Value: "true", Label: "Yes"},
+				{Value: "false", Label: "No"},
+			},
+			Description: "Favorite status",
+		},
+		types.AttrIsArchived: {
+			Type:       types.AttributeTypeBool,
+			SupportsEq: true,
+			Options: []provider.FilterOption{
+				{Value: "true", Label: "Yes"},
+				{Value: "false", Label: "No"},
+			},
+			Description: "Archived status",
+		},
+		types.AttrCreated: {
+			Type:          types.AttributeTypeTime,
+			SupportsEq:    true,
+			SupportsRange: true,
+			Description:   "Creation timestamp (Unix)",
+		},
+		types.AttrWidth: {
+			Type:          types.AttributeTypeInt,
+			SupportsEq:    true,
+			SupportsRange: true,
+			Min:           ptrFloat64(1),
+			Description:   "Image/video width in pixels",
+		},
+		types.AttrHeight: {
+			Type:          types.AttributeTypeInt,
+			SupportsEq:    true,
+			SupportsRange: true,
+			Min:           ptrFloat64(1),
+			Description:   "Image/video height in pixels",
+		},
+		types.AttrCamera: {
+			Type:             types.AttributeTypeString,
+			SupportsEq:       true,
+			SupportsContains: true,
+			Description:      "Camera make/model",
+		},
+		types.AttrGPS: {
+			Type:          types.AttributeTypeGPS,
+			SupportsRange: true,
+			Description:   "GPS coordinates",
+		},
+		types.AttrLocation: {
+			Type:             types.AttributeTypeString,
+			SupportsEq:       true,
+			SupportsContains: true,
+			Description:      "Location name",
+		},
+	}, nil
+}
+
+// ptrFloat64 returns a pointer to a float64.
+func ptrFloat64(v float64) *float64 {
+	return &v
+}
+
 // assetToEntity converts an Immich asset to an Entity.
 func (p *Provider) assetToEntity(asset Asset) types.Entity {
 	entityID := p.BuildEntityID(asset.ID).String()

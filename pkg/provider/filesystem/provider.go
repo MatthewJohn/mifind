@@ -257,6 +257,58 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// FilterCapabilities returns the filter capabilities for the filesystem provider.
+func (p *Provider) FilterCapabilities(ctx context.Context) (map[string]provider.FilterCapability, error) {
+	return map[string]provider.FilterCapability{
+		types.AttrPath: {
+			Type:             types.AttributeTypeString,
+			SupportsEq:       true,
+			SupportsContains: true,
+			SupportsGlob:     true,
+			Description:      "File system path",
+		},
+		types.AttrExtension: {
+			Type:             types.AttributeTypeString,
+			SupportsEq:       true,
+			SupportsNeq:      true,
+			SupportsContains: false,
+			Description:      "File extension (without dot)",
+		},
+		types.AttrMimeType: {
+			Type:             types.AttributeTypeString,
+			SupportsEq:       true,
+			SupportsNeq:      true,
+			SupportsContains: true,
+			Description:      "MIME type",
+		},
+		types.AttrSize: {
+			Type:          types.AttributeTypeInt64,
+			SupportsEq:    true,
+			SupportsNeq:   true,
+			SupportsRange: true,
+			Min:           ptrFloat64(0),
+			Description:   "File size in bytes",
+		},
+		types.AttrModified: {
+			Type:          types.AttributeTypeTime,
+			SupportsEq:    true,
+			SupportsRange: true,
+			Description:   "Last modification timestamp (Unix)",
+		},
+		types.AttrCreated: {
+			Type:          types.AttributeTypeTime,
+			SupportsEq:    true,
+			SupportsRange: true,
+			Description:   "Creation timestamp (Unix)",
+		},
+	}, nil
+}
+
+// ptrFloat64 returns a pointer to a float64.
+func ptrFloat64(v float64) *float64 {
+	return &v
+}
+
 // fileToEntity converts a File to an Entity.
 func (p *Provider) fileToEntity(file File) types.Entity {
 	entityID := p.BuildEntityID(file.ID).String()

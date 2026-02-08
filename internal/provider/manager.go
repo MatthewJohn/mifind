@@ -451,3 +451,113 @@ func (m *Manager) IsConnected(name string) bool {
 	inst, exists := m.providers[name]
 	return exists && inst.Status.Connected
 }
+
+// FilterCapabilities returns aggregated filter capabilities from all connected providers.
+// The returned map is keyed by attribute name, with values representing
+// the union of capabilities across all providers (an attribute is filterable
+// if ANY provider supports filtering on it).
+func (m *Manager) FilterCapabilities(ctx context.Context) (map[string]FilterCapability, error) {
+	m.mu.RLock()
+	providerList := make([]Provider, 0, len(m.providers))
+	for _, inst := range m.providers {
+		if inst.Status.Connected {
+			providerList = append(providerList, inst.Provider)
+		}
+	}
+	m.mu.RUnlock()
+
+	// Aggregate capabilities from all providers
+	aggregated := make(map[string]FilterCapability)
+
+	for _, prov := range providerList {
+		caps, err := prov.FilterCapabilities(ctx)
+		if err != nil {
+			m.logger.Warn().
+				Str("provider", prov.Name()).
+				Err(err).
+				Msg("Failed to get filter capabilities")
+			continue
+		}
+
+		// Merge with existing capabilities
+		for attr, cap := range caps {
+			if existing, ok := aggregated[attr]; ok {
+				// Take the union of supported operations
+				aggregated[attr] = FilterCapability{
+					Type:             cap.Type,
+					SupportsEq:       existing.SupportsEq || cap.SupportsEq,
+					SupportsNeq:      existing.SupportsNeq || cap.SupportsNeq,
+					SupportsRange:    existing.SupportsRange || cap.SupportsRange,
+					SupportsGlob:     existing.SupportsGlob || cap.SupportsGlob,
+					SupportsContains: existing.SupportsContains || cap.SupportsContains,
+					Min:              minPtr(existing.Min, cap.Min),
+					Max:              maxPtr(existing.Max, cap.Max),
+					Options:          mergeFilterOptions(existing.Options, cap.Options),
+					Description:      cap.Description,
+				}
+			} else {
+				aggregated[attr] = cap
+			}
+		}
+	}
+
+	return aggregated, nil
+}
+
+// minPtr returns the non-nil pointer with the smaller value, or nil if both are nil.
+func minPtr(a, b *float64) *float64 {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+	if *a < *b {
+		return a
+	}
+	return b
+}
+
+// maxPtr returns the non-nil pointer with the larger value, or nil if both are nil.
+func maxPtr(a, b *float64) *float64 {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+	if *a > *b {
+		return a
+	}
+	return b
+}
+
+// mergeFilterOptions merges filter options from two sources.
+func mergeFilterOptions(a, b []FilterOption) []FilterOption {
+	if len(a) == 0 {
+		return b
+	}
+	if len(b) == 0 {
+		return a
+	}
+
+	// Create a map to deduplicate by value
+	merged := make(map[string]FilterOption)
+	for _, opt := range a {
+		merged[opt.Value] = opt
+	}
+	for _, opt := range b {
+		if existing, ok := merged[opt.Value]; ok {
+			// Sum counts for faceted search
+			opt.Count = existing.Count + opt.Count
+		}
+		merged[opt.Value] = opt
+	}
+
+	// Convert back to slice
+	result := make([]FilterOption, 0, len(merged))
+	for _, opt := range merged {
+		result = append(result, opt)
+	}
+	return result
+}

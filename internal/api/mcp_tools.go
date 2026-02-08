@@ -143,20 +143,19 @@ func (m *MCPServer) ListTools() []MCPTool {
 		},
 		{
 			Name:        "get_filters",
-			Description: "Get available filters for a search query",
+			Description: "Get available filters and provider filter capabilities. Returns runtime-discoverable filter capabilities from all connected providers, plus extracted filter values from search results if a search query is provided.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"search": map[string]interface{}{
 						"type":        "string",
-						"description": "The search query to get filters for",
+						"description": "Optional search query to extract filter values from results",
 					},
 					"type": map[string]interface{}{
 						"type":        "string",
 						"description": "Filter by entity type (optional)",
 					},
 				},
-				"required": []string{"search"},
 			},
 		},
 	}
@@ -380,33 +379,41 @@ func (m *MCPServer) getRelated(ctx context.Context, args map[string]interface{})
 
 // get_filters implementation
 func (m *MCPServer) getFilters(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	searchQuery, ok := args["search"].(string)
-	if !ok || searchQuery == "" {
-		return nil, fmt.Errorf("search is required")
+	// Get provider filter capabilities
+	capabilities, err := m.manager.FilterCapabilities(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get filter capabilities: %w", err)
 	}
 
-	typeName := ""
-	if tn, ok := args["type"].(string); ok {
-		typeName = tn
+	// Extract filters from search results if search is provided
+	var filterResult search.FilterResult
+	if searchQuery, ok := args["search"].(string); ok && searchQuery != "" {
+		typeName := ""
+		if tn, ok := args["type"].(string); ok {
+			typeName = tn
+		}
+
+		// Execute search to get entities
+		query := search.NewSearchQuery(searchQuery)
+		query.Limit = 100
+
+		response := m.handlers.federator.Search(ctx, query)
+		result := m.handlers.ranker.Rank(response, query)
+
+		// Extract entities
+		entities := make([]types.Entity, len(result.Entities))
+		for i, ranked := range result.Entities {
+			entities[i] = ranked.Entity
+		}
+
+		// Extract filters from search results
+		filterResult = m.handlers.filters.ExtractFilters(entities, typeName)
 	}
 
-	// Execute search to get entities
-	query := search.NewSearchQuery(searchQuery)
-	query.Limit = 100
-
-	response := m.handlers.federator.Search(ctx, query)
-	result := m.handlers.ranker.Rank(response, query)
-
-	// Extract entities
-	entities := make([]types.Entity, len(result.Entities))
-	for i, ranked := range result.Entities {
-		entities[i] = ranked.Entity
-	}
-
-	// Extract filters
-	filterResult := m.handlers.filters.ExtractFilters(entities, typeName)
-
-	return filterResult, nil
+	return map[string]interface{}{
+		"capabilities": capabilities,
+		"filters":      filterResult,
+	}, nil
 }
 
 // MCPError represents an MCP tool error.

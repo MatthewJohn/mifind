@@ -331,27 +331,42 @@ func (h *Handlers) GetType(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetFilters returns available filters for a search query.
+// It also returns provider filter capabilities.
 func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("search")
 	typeName := r.URL.Query().Get("type")
 
-	// Execute search to get entities
-	searchQuery := search.NewSearchQuery(query)
-	searchQuery.Limit = 100 // Limit for filter extraction
-
-	response := h.federator.Search(r.Context(), searchQuery)
-	result := h.ranker.Rank(response, searchQuery)
-
-	// Extract entities from ranked results
-	entities := make([]types.Entity, len(result.Entities))
-	for i, ranked := range result.Entities {
-		entities[i] = ranked.Entity
+	// Get provider filter capabilities
+	capabilities, err := h.manager.FilterCapabilities(r.Context())
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get filter capabilities: %v", err))
+		return
 	}
 
-	// Extract filters
-	filterResult := h.filters.ExtractFilters(entities, typeName)
+	// Execute search to get entities (if query is provided)
+	var filterResult search.FilterResult
+	if query != "" || typeName != "" {
+		searchQuery := search.NewSearchQuery(query)
+		searchQuery.Limit = 100 // Limit for filter extraction
+		searchQuery.Type = typeName
 
-	h.writeJSON(w, http.StatusOK, filterResult)
+		response := h.federator.Search(r.Context(), searchQuery)
+		result := h.ranker.Rank(response, searchQuery)
+
+		// Extract entities from ranked results
+		entities := make([]types.Entity, len(result.Entities))
+		for i, ranked := range result.Entities {
+			entities[i] = ranked.Entity
+		}
+
+		// Extract filters from search results
+		filterResult = h.filters.ExtractFilters(entities, typeName)
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"capabilities": capabilities,
+		"filters":      filterResult,
+	})
 }
 
 // ListProviders returns all registered providers.
