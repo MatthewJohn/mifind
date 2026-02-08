@@ -15,10 +15,9 @@ import (
 // It connects to a filesystem-api service to search and browse files.
 type Provider struct {
 	provider.BaseProvider
-	client     *Client
-	url        string
-	apiKey     string
-	instanceID string // Provider instance ID (e.g., "myfs")
+	client *Client
+	url    string
+	apiKey string
 }
 
 // NewProvider creates a new filesystem provider.
@@ -60,7 +59,8 @@ func (p *Provider) Initialize(ctx context.Context, config map[string]any) error 
 	if !ok || instanceID == "" {
 		return provider.NewProviderError(provider.ErrorTypeConfig, "instance_id is required", nil)
 	}
-	p.instanceID = instanceID
+	// Set instance ID on BaseProvider so BuildEntityID works correctly
+	p.SetInstanceID(instanceID)
 
 	// Get URL
 	url, ok := config["url"].(string)
@@ -316,11 +316,28 @@ func (p *Provider) fileToEntity(file File) types.Entity {
 
 	entity := types.NewEntity(entityID, entityType, p.Name(), file.Name)
 
+	// Set Timestamp to file's modified time instead of cache time
+	if !file.Modified.IsZero() {
+		entity.Timestamp = file.Modified
+	}
+
 	entity.AddAttribute(types.AttrPath, file.Path)
-	entity.AddAttribute(types.AttrSize, file.Size)
+
+	// Only add size if it's valid (> 0)
+	if file.Size > 0 {
+		entity.AddAttribute(types.AttrSize, file.Size)
+	}
+
 	entity.AddAttribute(types.AttrExtension, strings.TrimPrefix(file.Extension, "."))
 	entity.AddAttribute(types.AttrMimeType, file.MimeType)
-	entity.AddAttribute(types.AttrModified, file.Modified.Unix())
+
+	// Validate modified timestamp before converting
+	modifiedTime := file.Modified
+	if modifiedTime.Before(time.Unix(0, 1)) {
+		// Clamp to minimum valid timestamp (1970-01-01 00:00:01 UTC)
+		modifiedTime = time.Unix(0, 1)
+	}
+	entity.AddAttribute(types.AttrModified, modifiedTime.Unix())
 
 	if !file.Created.IsZero() {
 		entity.AddAttribute(types.AttrCreated, file.Created.Unix())
