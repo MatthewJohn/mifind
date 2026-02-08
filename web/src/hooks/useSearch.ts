@@ -20,11 +20,11 @@ export function useEntity(id: string | null) {
   })
 }
 
-export function useFilters() {
+export function useFilters(searchQuery?: string) {
   return useQuery({
-    queryKey: ['filters'],
+    queryKey: ['filters', searchQuery],
     queryFn: () => searchApi.getFilters(),
-    staleTime: 1000 * 60 * 60, // Cache for an hour
+    staleTime: 1000 * 60 * 5,
   })
 }
 

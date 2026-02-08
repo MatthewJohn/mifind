@@ -12,7 +12,23 @@ const api = axios.create({
 
 export const searchApi = {
   search: async (request: SearchRequest): Promise<SearchResult> => {
-    const response = await api.post('/search', request)
+    // Transform request to match Go API format
+    const goRequest: any = {
+      query: request.query,
+      limit: request.perPage || 20,
+      offset: request.page ? ((request.page - 1) * (request.perPage || 20)) : 0,
+    }
+
+    // Transform filters array to map format
+    if (request.filters && request.filters.length > 0) {
+      goRequest.filters = {}
+      for (const filter of request.filters) {
+        // Use simple key-value format for now
+        goRequest.filters[filter.key] = filter.value
+      }
+    }
+
+    const response = await api.post('/search', goRequest)
     return response.data
   },
 
@@ -21,8 +37,9 @@ export const searchApi = {
     return response.data
   },
 
-  getFilters: async (): Promise<FilterInfo> => {
-    const response = await api.get('/filters')
+  getFilters: async (searchQuery?: string): Promise<FilterInfo> => {
+    const params = searchQuery ? { search: searchQuery } : {}
+    const response = await api.get('/filters', { params })
     return response.data
   },
 

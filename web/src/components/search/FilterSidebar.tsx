@@ -12,9 +12,10 @@ export function FilterSidebar() {
     filters,
     removeFilter,
     clearFilters,
+    query,
   } = useSearchStore()
 
-  const { data: filterData, isLoading } = useFilters()
+  const { data: filterData, isLoading } = useFilters(query)
 
   if (!isFilterOpen) {
     return (
@@ -69,44 +70,91 @@ export function FilterSidebar() {
 
         {!isLoading && filterData && (
           <>
-            {filterData.filters && filterData.filters.TypeCounts && Object.keys(filterData.filters.TypeCounts).length > 0 && (
+            {/* Type filter - use capabilities.type.Options if available, otherwise TypeCounts from search results */}
+            {(filterData.capabilities?.type?.Options || (filterData.filters?.TypeCounts && Object.keys(filterData.filters.TypeCounts).length > 0)) && (
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Type</h3>
                 <div className="space-y-1">
-                  {Object.entries(filterData.filters.TypeCounts).map(([type, count]) => (
-                    <label key={type} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedTypes.includes(type)}
-                        onChange={() => toggleType(type)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-600">
-                        {type} ({count})
-                      </span>
-                    </label>
-                  ))}
+                  {filterData.filters?.TypeCounts ? (
+                    // Show types with counts from search results
+                    Object.entries(filterData.filters.TypeCounts).map(([type, count]) => (
+                      <label key={type} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedTypes.includes(type)}
+                          onChange={() => toggleType(type)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-600">
+                          {type} ({count})
+                        </span>
+                      </label>
+                    ))
+                  ) : (
+                    // Show predefined types from capabilities
+                    filterData.capabilities?.type?.Options?.map((opt: any) => (
+                      <label key={opt.Value} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedTypes.includes(opt.Value)}
+                          onChange={() => toggleType(opt.Value)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-600">
+                          {opt.Label || opt.Value}
+                        </span>
+                      </label>
+                    ))
+                  )}
                 </div>
               </div>
             )}
 
-            {filterData.filters && filterData.filters.AttributeCounts && (
+            {/* Attribute filters - show from capabilities */}
+            {filterData.capabilities && (
               <div>
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Attributes</h3>
                 <div className="space-y-3">
-                  {Object.entries(filterData.filters.AttributeCounts).slice(0, 5).map(([attr, values]) => (
-                    <div key={attr}>
-                      <h4 className="text-xs font-medium text-gray-500 mb-1">{attr}</h4>
-                      <select className="w-full text-sm border border-gray-300 rounded px-2 py-1">
-                        <option value="">All</option>
-                        {Object.entries(values as Record<string, number>).map(([value, count]) => (
-                          <option key={value} value={value}>
-                            {value} ({count})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
+                  {Object.entries(filterData.capabilities)
+                    .filter(([key]) => key !== 'type') // Skip type, already shown above
+                    .slice(0, 8)
+                    .map(([key, cap]: [string, any]) => (
+                      <div key={key}>
+                        <h4 className="text-xs font-medium text-gray-500 mb-1">{cap.Description || key}</h4>
+                        {cap.Options ? (
+                          // Predefined options
+                          <select className="w-full text-sm border border-gray-300 rounded px-2 py-1">
+                            <option value="">All</option>
+                            {cap.Options.map((opt: any) => (
+                              <option key={opt.Value} value={opt.Value}>
+                                {opt.Label || opt.Value} {opt.Count > 0 && `(${opt.Count})`}
+                              </option>
+                            ))}
+                          </select>
+                        ) : cap.Type === 'string' || cap.Type === 'time' ? (
+                          // Text input for strings and time
+                          <input
+                            type="text"
+                            placeholder={`Filter by ${key}`}
+                            className="w-full text-sm border border-gray-300 rounded px-2 py-1"
+                          />
+                        ) : cap.Type === 'int64' || cap.Type === 'int' ? (
+                          // Number input
+                          <input
+                            type="number"
+                            placeholder={`Filter by ${key}`}
+                            className="w-full text-sm border border-gray-300 rounded px-2 py-1"
+                          />
+                        ) : (
+                          // Default text input
+                          <input
+                            type="text"
+                            placeholder={`Filter by ${key}`}
+                            className="w-full text-sm border border-gray-300 rounded px-2 py-1"
+                          />
+                        )}
+                      </div>
+                    ))}
                 </div>
               </div>
             )}
