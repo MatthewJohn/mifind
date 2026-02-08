@@ -14,11 +14,11 @@ import (
 
 // Scanner handles filesystem scanning operations.
 type Scanner struct {
-	config      *Config
-	logger      *zerolog.Logger
-	instanceID  string
-	pathCache   map[string]string // Cache for quick path lookups
-	cacheMutex  sync.RWMutex
+	config     *Config
+	logger     *zerolog.Logger
+	instanceID string
+	pathCache  map[string]string // Cache for quick path lookups
+	cacheMutex sync.RWMutex
 }
 
 // NewScanner creates a new scanner.
@@ -33,7 +33,26 @@ func NewScanner(config *Config, instanceID string, logger *zerolog.Logger) *Scan
 
 // Scan performs a full scan of all configured paths.
 func (s *Scanner) Scan(ctx context.Context) ([]*File, error) {
-	s.logger.Info().Msg("Starting full filesystem scan")
+	return s.ScanWithOptions(ctx, ScanOptions{FullMetadata: true})
+}
+
+// ScanShallow performs a shallow scan (filenames only, no metadata lookup).
+func (s *Scanner) ScanShallow(ctx context.Context) ([]*File, error) {
+	return s.ScanWithOptions(ctx, ScanOptions{FullMetadata: false})
+}
+
+// ScanOptions controls scan behavior.
+type ScanOptions struct {
+	FullMetadata bool // If false, skip expensive metadata operations
+}
+
+// ScanWithOptions performs a scan with the given options.
+func (s *Scanner) ScanWithOptions(ctx context.Context, opts ScanOptions) ([]*File, error) {
+	scanType := "full"
+	if !opts.FullMetadata {
+		scanType = "shallow"
+	}
+	s.logger.Info().Str("scan_type", scanType).Msg("Starting filesystem scan")
 
 	var allFiles []*File
 	var mu sync.Mutex
@@ -48,7 +67,7 @@ func (s *Scanner) Scan(ctx context.Context) ([]*File, error) {
 		go func(path string) {
 			defer wg.Done()
 
-			files, err := s.scanPath(ctx, path, 0)
+			files, err := s.scanPathWithOptions(ctx, path, 0, opts)
 			if err != nil {
 				s.logger.Error().Err(err).Str("path", path).Msg("Failed to scan path")
 				errChan <- fmt.Errorf("path %s: %w", path, err)
@@ -62,6 +81,7 @@ func (s *Scanner) Scan(ctx context.Context) ([]*File, error) {
 			s.logger.Info().
 				Str("path", path).
 				Int("count", len(files)).
+				Str("scan_type", scanType).
 				Msg("Scanned path")
 		}(scanPath)
 	}
@@ -84,7 +104,8 @@ func (s *Scanner) Scan(ctx context.Context) ([]*File, error) {
 
 	s.logger.Info().
 		Int("total_files", len(allFiles)).
-		Msg("Full scan complete")
+		Str("scan_type", scanType).
+		Msg("Scan complete")
 
 	return allFiles, nil
 }
@@ -243,8 +264,8 @@ func (s *Scanner) GetFileByPath(ctx context.Context, path string) (*File, error)
 	return s.createFile(path, info)
 }
 
-// scanPath scans a single path recursively.
-func (s *Scanner) scanPath(ctx context.Context, path string, depth int) ([]*File, error) {
+// scanPathWithOptions scans a single path recursively with options.
+func (s *Scanner) scanPathWithOptions(ctx context.Context, path string, depth int, opts ScanOptions) ([]*File, error) {
 	// Check context
 	select {
 	case <-ctx.Done():
@@ -267,7 +288,7 @@ func (s *Scanner) scanPath(ctx context.Context, path string, depth int) ([]*File
 
 	// If it's a file, create a file record and return
 	if !info.IsDir() {
-		file, err := s.createFile(path, info)
+		file, err := s.createFileWithOptions(path, info, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -316,7 +337,7 @@ func (s *Scanner) scanPath(ctx context.Context, path string, depth int) ([]*File
 
 		// If it's a directory, recurse
 		if fileInfo.IsDir() {
-			subFiles, err := s.scanPath(ctx, fullPath, depth+1)
+			subFiles, err := s.scanPathWithOptions(ctx, fullPath, depth+1, opts)
 			if err != nil {
 				s.logger.Warn().Err(err).Str("path", fullPath).Msg("Failed to scan subdirectory")
 				continue
@@ -326,7 +347,7 @@ func (s *Scanner) scanPath(ctx context.Context, path string, depth int) ([]*File
 		}
 
 		// Create file record
-		file, err := s.createFile(fullPath, fileInfo)
+		file, err := s.createFileWithOptions(fullPath, fileInfo, opts)
 		if err != nil {
 			s.logger.Warn().Err(err).Str("path", fullPath).Msg("Failed to create file record")
 			continue
@@ -336,6 +357,11 @@ func (s *Scanner) scanPath(ctx context.Context, path string, depth int) ([]*File
 	}
 
 	return files, nil
+}
+
+// scanPath scans a single path recursively (full metadata).
+func (s *Scanner) scanPath(ctx context.Context, path string, depth int) ([]*File, error) {
+	return s.scanPathWithOptions(ctx, path, depth, ScanOptions{FullMetadata: true})
 }
 
 // scanPathIncremental scans a single path for files modified since the given time.
@@ -451,6 +477,51 @@ func (s *Scanner) createFile(path string, info os.FileInfo) (*File, error) {
 
 	// Detect MIME type using mimetype library if available
 	mimeType := DetectMIMETypeAdvanced(absPath, info.IsDir())
+
+	// Generate file ID
+	fileID := GenerateFileID(absPath)
+
+	// Cache the path
+	s.cacheMutex.Lock()
+	s.pathCache[fileID] = absPath
+	s.cacheMutex.Unlock()
+
+	return &File{
+		ID:        fileID,
+		Path:      absPath,
+		Name:      filepath.Base(absPath),
+		Extension: ext,
+		Size:      info.Size(),
+		MimeType:  mimeType,
+		Modified:  info.ModTime(),
+		IsDir:     info.IsDir(),
+	}, nil
+}
+
+// createFileWithOptions creates a File record from a path and os.FileInfo with options.
+func (s *Scanner) createFileWithOptions(path string, info os.FileInfo, opts ScanOptions) (*File, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	// Extract extension
+	ext := filepath.Ext(path)
+	if ext != "" {
+		ext = ext[1:] // Remove the dot
+	}
+
+	// Detect MIME type (skip in shallow mode)
+	var mimeType string
+	if opts.FullMetadata {
+		mimeType = DetectMIMETypeAdvanced(absPath, info.IsDir())
+	} else {
+		if info.IsDir() {
+			mimeType = MIMEDirectory
+		} else {
+			mimeType = DetectMIMETypeBasic(absPath, info.IsDir())
+		}
+	}
 
 	// Generate file ID
 	fileID := GenerateFileID(absPath)

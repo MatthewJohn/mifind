@@ -36,10 +36,16 @@ type IndexedFile struct {
 	IsDir      bool   `json:"is_dir"`
 	SearchText string `json:"search_text"` // Concatenated for search
 	ParentPath string `json:"parent_path"` // For filtering
+	Indexed    string `json:"indexed"`     // "full" or "shallow"
 }
 
 // ToIndexedFile converts a File to an IndexedFile.
 func (f *File) ToIndexedFile() IndexedFile {
+	return f.ToIndexedFileWithLevel("full")
+}
+
+// ToIndexedFileWithLevel converts a File to an IndexedFile with the specified index level.
+func (f *File) ToIndexedFileWithLevel(level string) IndexedFile {
 	return IndexedFile{
 		ID:         f.ID,
 		Path:       f.Path,
@@ -51,6 +57,7 @@ func (f *File) ToIndexedFile() IndexedFile {
 		IsDir:      f.IsDir,
 		SearchText: f.buildSearchText(),
 		ParentPath: f.getParentPath(),
+		Indexed:    level,
 	}
 }
 
@@ -173,13 +180,13 @@ type BrowseResult struct {
 
 // FileFilter defines a filter for files.
 type FileFilter struct {
-	Extension  string
-	MimeType   string
-	MinSize    int64
-	MaxSize    int64
+	Extension     string
+	MimeType      string
+	MinSize       int64
+	MaxSize       int64
 	ModifiedSince time.Time
 	ModifiedUntil time.Time
-	Path       string // Parent path filter
+	Path          string // Parent path filter
 }
 
 // Matches checks if a file matches the filter.

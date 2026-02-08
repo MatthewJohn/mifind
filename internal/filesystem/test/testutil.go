@@ -18,8 +18,8 @@ func CreateTestDirectory(t *testing.T) string {
 		"documents",
 		"images",
 		"code",
-		".git",          // Should be excluded
-		"node_modules",  // Should be excluded
+		".git",         // Should be excluded
+		"node_modules", // Should be excluded
 	}
 
 	for _, dir := range dirs {
@@ -35,7 +35,7 @@ func CreateTestDirectory(t *testing.T) string {
 		"images/photo.jpg":      "fake image data",
 		"code/main.go":          "package main\n\nfunc main() {}\n",
 		"code/utils.go":         "package main\n\nfunc utils() {}\n",
-		".git/config":           "git config", // Should be excluded
+		".git/config":           "git config",     // Should be excluded
 		"node_modules/index.js": "module.exports", // Should be excluded
 		"test.tmp":              "temporary file", // Should be excluded
 	}

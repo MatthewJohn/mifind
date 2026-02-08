@@ -89,6 +89,7 @@ func (i *Indexer) updateIndexSettings(ctx context.Context) error {
 			"parent_path",
 			"size",
 			"modified",
+			"indexed",
 		},
 		SortableAttributes: []string{
 			"name",
@@ -130,8 +131,13 @@ func (i *Indexer) updateIndexSettings(ctx context.Context) error {
 	return nil
 }
 
-// IndexFiles indexes a batch of files.
+// IndexFiles indexes a batch of files (defaults to full index).
 func (i *Indexer) IndexFiles(ctx context.Context, files []*File) error {
+	return i.IndexFilesWithLevel(ctx, files, "full")
+}
+
+// IndexFilesWithLevel indexes a batch of files with the specified index level.
+func (i *Indexer) IndexFilesWithLevel(ctx context.Context, files []*File, level string) error {
 	if len(files) == 0 {
 		return nil
 	}
@@ -139,7 +145,7 @@ func (i *Indexer) IndexFiles(ctx context.Context, files []*File) error {
 	// Convert files to indexed documents
 	documents := make([]IndexedFile, len(files))
 	for idx, file := range files {
-		documents[idx] = file.ToIndexedFile()
+		documents[idx] = file.ToIndexedFileWithLevel(level)
 	}
 
 	// Index documents in batches

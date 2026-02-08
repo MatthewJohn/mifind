@@ -269,14 +269,14 @@ func TestHandler_Index(t *testing.T) {
 // Mock service for testing
 
 type mockService struct {
-	searchResult  *filesystem.SearchResult
-	browseResult  *filesystem.BrowseResult
-	file          *filesystem.File
-	getFileErr    bool
-	searchErr     bool
-	browseErr     bool
-	stats         *filesystem.ServiceStats
-	healthErr     error
+	searchResult *filesystem.SearchResult
+	browseResult *filesystem.BrowseResult
+	file         *filesystem.File
+	getFileErr   bool
+	searchErr    bool
+	browseErr    bool
+	stats        *filesystem.ServiceStats
+	healthErr    error
 }
 
 func (m *mockService) Scan(ctx context.Context) (*filesystem.ScanResult, error) {
@@ -285,6 +285,14 @@ func (m *mockService) Scan(ctx context.Context) (*filesystem.ScanResult, error) 
 
 func (m *mockService) ScanIncremental(ctx context.Context) (*filesystem.ScanResult, error) {
 	return &filesystem.ScanResult{}, nil
+}
+
+func (m *mockService) ScanShallow(ctx context.Context) (*filesystem.ScanResult, error) {
+	return &filesystem.ScanResult{}, nil
+}
+
+func (m *mockService) EnrichFiles(ctx context.Context, ids []string) error {
+	return nil
 }
 
 func (m *mockService) Search(ctx context.Context, req filesystem.SearchRequest) (*filesystem.SearchResult, error) {

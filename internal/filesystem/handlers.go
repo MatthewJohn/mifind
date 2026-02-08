@@ -16,6 +16,8 @@ import (
 type ServiceInterface interface {
 	Scan(ctx context.Context) (*ScanResult, error)
 	ScanIncremental(ctx context.Context) (*ScanResult, error)
+	ScanShallow(ctx context.Context) (*ScanResult, error)
+	EnrichFiles(ctx context.Context, ids []string) error
 	Search(ctx context.Context, req SearchRequest) (*SearchResult, error)
 	Browse(ctx context.Context, path string) (*BrowseResult, error)
 	GetFile(ctx context.Context, id string) (*File, error)
@@ -60,6 +62,7 @@ func (h *Handlers) RegisterRoutes(router *mux.Router) {
 
 	// Scan endpoints
 	router.HandleFunc("/scan", h.Scan).Methods("POST")
+	router.HandleFunc("/scan/shallow", h.ScanShallow).Methods("POST")
 	router.HandleFunc("/scan/incremental", h.ScanIncremental).Methods("POST")
 
 	// Index endpoint
@@ -82,19 +85,6 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Limit > 1000 {
 		req.Limit = 1000
-	}
-
-	// Check if we need to auto-scan (if index is empty)
-	stats, err := h.service.GetStats(r.Context())
-	if err == nil && stats.IndexedDocuments == 0 {
-		h.logger.Info().Msg("Index empty, triggering auto-scan in background")
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-			defer cancel()
-			if _, err := h.service.Scan(ctx); err != nil {
-				h.logger.Error().Err(err).Msg("Auto-scan failed")
-			}
-		}()
 	}
 
 	// Execute search
@@ -204,11 +194,12 @@ func (h *Handlers) Index(w http.ResponseWriter, r *http.Request) {
 			"POST /search":           "Search for files",
 			"GET  /browse":           "Browse directory",
 			"GET  /file/{id}":        "Get file by ID",
-			"POST /scan":             "Trigger full scan",
+			"POST /scan":             "Trigger full scan (with metadata)",
+			"POST /scan/shallow":     "Trigger shallow scan (filenames only)",
 			"POST /scan/incremental": "Trigger incremental scan",
 			"GET  /health":           "Health check",
 			"GET  /stats":            "Service statistics",
-			"GET  /":                "API index",
+			"GET  /":                 "API index",
 		},
 	})
 }
@@ -256,6 +247,28 @@ func (h *Handlers) ScanIncremental(w http.ResponseWriter, r *http.Request) {
 		"files_scanned": result.FilesScanned,
 		"scan_time":     result.ScanTime,
 		"since":         result.Since,
+	})
+}
+
+// ScanShallow triggers a shallow scan (filenames only).
+func (h *Handlers) ScanShallow(w http.ResponseWriter, r *http.Request) {
+	h.logger.Info().Msg("Shallow scan requested")
+
+	result, err := h.service.ScanShallow(r.Context())
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Shallow scan failed")
+		h.writeError(w, http.StatusInternalServerError, fmt.Sprintf("shallow scan failed: %v", err))
+		return
+	}
+
+	h.logger.Info().
+		Int("files_scanned", result.FilesScanned).
+		Msg("Shallow scan completed")
+
+	h.writeJSON(w, http.StatusAccepted, map[string]interface{}{
+		"message":       "Shallow scan completed",
+		"files_scanned": result.FilesScanned,
+		"scan_time":     result.ScanTime,
 	})
 }
 

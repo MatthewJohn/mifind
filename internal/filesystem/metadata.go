@@ -39,17 +39,17 @@ const (
 	MIMEApplicationTar  = "application/x-tar"
 
 	// Microsoft Office types
-	MIMEApplicationDocX  = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-	MIMEApplicationXLSX  = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-	MIMEApplicationPPTX  = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	MIMEApplicationDocX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	MIMEApplicationXLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	MIMEApplicationPPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
 	// Text-based types
-	MIMETextHTML   = "text/html"
-	MIMETextCSS    = "text/css"
-	MIMETextJS     = "text/javascript"
-	MIMETextJSON   = "application/json"
-	MIMETextXML    = "application/xml"
-	MIMETextYAML   = "application/x-yaml"
+	MIMETextHTML     = "text/html"
+	MIMETextCSS      = "text/css"
+	MIMETextJS       = "text/javascript"
+	MIMETextJSON     = "application/json"
+	MIMETextXML      = "application/xml"
+	MIMETextYAML     = "application/x-yaml"
 	MIMETextMarkdown = "text/markdown"
 )
 
@@ -90,12 +90,12 @@ var MIMETypeMap = map[string]string{
 	".opus": "audio/opus",
 
 	// Documents
-	".pdf": MIMEApplicationPDF,
-	".doc": "application/msword",
+	".pdf":  MIMEApplicationPDF,
+	".doc":  "application/msword",
 	".docx": MIMEApplicationDocX,
-	".xls": "application/vnd.ms-excel",
+	".xls":  "application/vnd.ms-excel",
 	".xlsx": MIMEApplicationXLSX,
-	".ppt": "application/vnd.ms-powerpoint",
+	".ppt":  "application/vnd.ms-powerpoint",
 	".pptx": MIMEApplicationPPTX,
 
 	// Text
@@ -139,13 +139,13 @@ var MIMETypeMap = map[string]string{
 	".zsh":  "text/x-shellscript",
 
 	// Archives
-	".zip":  MIMEApplicationZip,
-	".tar":  MIMEApplicationTar,
-	".gz":   MIMEApplicationGZip,
-	".rar":  "application/x-rar-compressed",
-	".7z":   "application/x-7z-compressed",
-	".bz2":  "application/x-bzip2",
-	".xz":   "application/x-xz",
+	".zip": MIMEApplicationZip,
+	".tar": MIMEApplicationTar,
+	".gz":  MIMEApplicationGZip,
+	".rar": "application/x-rar-compressed",
+	".7z":  "application/x-7z-compressed",
+	".bz2": "application/x-bzip2",
+	".xz":  "application/x-xz",
 }
 
 // DetectMIMETypeBasic detects the MIME type of a file using extension-based detection.
@@ -199,10 +199,10 @@ func IsAudio(mimeType string) bool {
 func IsDocument(mimeType string) bool {
 	return strings.HasPrefix(mimeType, "text/") ||
 		strings.HasPrefix(mimeType, "application/") &&
-		(strings.Contains(mimeType, "pdf") ||
-			strings.Contains(mimeType, "document") ||
-			strings.Contains(mimeType, "sheet") ||
-			strings.Contains(mimeType, "presentation"))
+			(strings.Contains(mimeType, "pdf") ||
+				strings.Contains(mimeType, "document") ||
+				strings.Contains(mimeType, "sheet") ||
+				strings.Contains(mimeType, "presentation"))
 }
 
 // IsArchive checks if a MIME type is an archive.

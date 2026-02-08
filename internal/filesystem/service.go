@@ -21,7 +21,7 @@ type Service struct {
 	instanceID string
 
 	// Track last scan time for incremental updates
-	lastScanMu sync.RWMutex
+	lastScanMu   sync.RWMutex
 	lastScanTime time.Time
 }
 
@@ -85,8 +85,8 @@ func (s *Service) Scan(ctx context.Context) (*ScanResult, error) {
 		return nil, fmt.Errorf("scan failed: %w", err)
 	}
 
-	// Index files
-	if err := s.indexer.IndexFiles(ctx, files); err != nil {
+	// Index files with full metadata
+	if err := s.indexer.IndexFilesWithLevel(ctx, files, "full"); err != nil {
 		return nil, fmt.Errorf("indexing failed: %w", err)
 	}
 
@@ -119,8 +119,8 @@ func (s *Service) ScanIncremental(ctx context.Context) (*ScanResult, error) {
 		return nil, fmt.Errorf("incremental scan failed: %w", err)
 	}
 
-	// Index files
-	if err := s.indexer.IndexFiles(ctx, files); err != nil {
+	// Index files with full metadata (incremental scans always get full metadata)
+	if err := s.indexer.IndexFilesWithLevel(ctx, files, "full"); err != nil {
 		return nil, fmt.Errorf("indexing failed: %w", err)
 	}
 
@@ -134,6 +134,51 @@ func (s *Service) ScanIncremental(ctx context.Context) (*ScanResult, error) {
 		ScanTime:     time.Now(),
 		Since:        since,
 	}, nil
+}
+
+// ScanShallow performs a shallow scan (filenames only, no expensive metadata).
+func (s *Service) ScanShallow(ctx context.Context) (*ScanResult, error) {
+	s.logger.Info().Msg("Starting shallow scan")
+
+	files, err := s.scanner.ScanShallow(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("shallow scan failed: %w", err)
+	}
+
+	// Index files with shallow level (names only)
+	if err := s.indexer.IndexFilesWithLevel(ctx, files, "shallow"); err != nil {
+		return nil, fmt.Errorf("indexing failed: %w", err)
+	}
+
+	return &ScanResult{
+		FilesScanned: len(files),
+		ScanTime:     time.Now(),
+	}, nil
+}
+
+// EnrichFiles enriches specific files with full metadata.
+func (s *Service) EnrichFiles(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	s.logger.Info().Int("count", len(ids)).Msg("Enriching files with metadata")
+
+	var files []*File
+	for _, id := range ids {
+		file, err := s.scanner.GetFile(ctx, id)
+		if err != nil {
+			s.logger.Warn().Err(err).Str("id", id).Msg("Failed to get file for enrichment")
+			continue
+		}
+		files = append(files, file)
+	}
+
+	if len(files) == 0 {
+		return nil
+	}
+
+	return s.indexer.IndexFilesWithLevel(ctx, files, "full")
 }
 
 // Search performs a search query.
