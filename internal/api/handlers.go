@@ -117,23 +117,45 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build search query
+	// Build search query - don't apply limit/offset at provider level
+	// We'll apply pagination after getting all results
 	query := search.NewSearchQuery(req.Query)
 	query.Filters = req.Filters
 	query.Type = req.Type
-	query.Limit = req.Limit
-	query.Offset = req.Offset
+	// Don't set query.Limit/Offset - we'll paginate after ranking
 	query.TypeWeights = req.TypeWeights
 	query.IncludeRelated = req.IncludeRelated
 	query.MaxDepth = req.MaxDepth
 
-	// Execute search
+	// Execute search (get all results from providers)
 	response := h.federator.Search(r.Context(), query)
 	result := h.ranker.Rank(response, query)
 
-	// Build response
-	entities := make([]EntityWithScore, len(result.Entities))
-	for i, ranked := range result.Entities {
+	// Apply pagination after ranking
+	limit := req.Limit
+	if limit == 0 {
+		limit = 24 // Default page size
+	}
+	offset := req.Offset
+
+	// Calculate total from all ranked results
+	totalCount := len(result.Entities)
+
+	// Apply pagination slice
+	pageStart := offset
+	if pageStart > totalCount {
+		pageStart = totalCount
+	}
+	pageEnd := pageStart + limit
+	if pageEnd > totalCount {
+		pageEnd = totalCount
+	}
+
+	paginatedEntities := result.Entities[pageStart:pageEnd]
+
+	// Build response with paginated entities
+	entities := make([]EntityWithScore, len(paginatedEntities))
+	for i, ranked := range paginatedEntities {
 		entities[i] = EntityWithScore{
 			Entity:   ranked.Entity,
 			Score:    ranked.Score,
@@ -143,7 +165,7 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 
 	resp := SearchResponse{
 		Entities:   entities,
-		TotalCount: result.TotalCount,
+		TotalCount: totalCount, // Total count of all results (not just this page)
 		TypeCounts: result.TypeCounts,
 		Duration:   float64(time.Since(start).Microseconds()) / 1000,
 	}
