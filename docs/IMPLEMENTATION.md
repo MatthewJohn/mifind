@@ -97,7 +97,7 @@ type Relationship struct {
 
 ### Type System
 
-Hierarchical types with inheritance:
+Hierarchical types with inheritance and centralized type definitions:
 
 ```
 Item
@@ -115,6 +115,42 @@ Item
 └── Person
 ```
 
+**Centralized Type Definitions** (`internal/types/core.go`):
+
+- Type hierarchy constants (e.g., `TypeFile`, `TypeMediaAssetPhoto`)
+- `TypeHierarchy` slice with complete type definitions
+- `RegisterCoreTypes()` function to register all core types
+- Providers use canonical type constants for consistency
+
+**Standard Attributes** (`internal/types/attributes.go`):
+
+- Core attribute constants (e.g., `AttrPath`, `AttrSize`, `AttrGPS`)
+- AttributeBuilder for type-safe attribute construction
+- Pre-defined attribute definitions for reuse
+
+**Filter Capability** (`internal/provider/interface.go`):
+
+- **Runtime-discoverable**: Each provider declares what it can filter on
+- **Provider-specific**: Different providers may support different filters
+- **Aggregated**: Manager returns union of all provider capabilities
+
+```go
+type FilterCapability struct {
+    Type             AttributeType
+    SupportsEq       bool   // Equality (e.g., "extension=jpg")
+    SupportsNeq      bool   // Inequality (e.g., "extension!=jpg")
+    SupportsRange    bool   // Range (e.g., "size>1000", "width<1920")
+    SupportsGlob     bool   // Glob patterns (e.g., "path=*.jpg")
+    SupportsContains bool   // Substring (e.g., "title~vacation")
+    Min, Max         *float64
+    Options          []FilterOption  // For enumerated types
+    Description      string
+}
+
+// Provider interface method
+FilterCapabilities(ctx context.Context) (map[string]FilterCapability, error)
+```
+
 ---
 
 ## Provider Interface
@@ -122,22 +158,37 @@ Item
 ```go
 type Provider interface {
     Name() string
-    Initialize(config map[string]any) error
+    InstanceID() string  // Provider instance ID (e.g., "myfs", "photos")
+    Initialize(ctx context.Context, config map[string]any) error
     Discover(ctx context.Context) ([]Entity, error)
     Hydrate(ctx context.Context, id string) (Entity, error)
     GetRelated(ctx context.Context, id string, relType string) ([]Entity, error)
     Search(ctx context.Context, query SearchQuery) ([]Entity, error)
+    FilterCapabilities(ctx context.Context) (map[string]FilterCapability, error)
     SupportsIncremental() bool
-    Shutdown() error
+    DiscoverSince(ctx context.Context, since time.Time) ([]Entity, error)
+    Shutdown(ctx context.Context) error
 }
 
 type SearchQuery struct {
-    Query    string
-    Filters  map[string]any
-    Limit    int
-    Offset   int
+    Query           string
+    Filters         map[string]any
+    Type            string
+    Limit           int
+    Offset          int
 }
+
+// Entity ID format: "providerType:instanceID:resourceID"
+// Example: "filesystem:myfs:abc123"
+type EntityID string
 ```
+
+**Key Concepts**:
+
+- **Instance IDs**: Each provider instance has a unique ID for multi-instance support
+- **Entity IDs**: Structured format `providerType:instanceID:resourceID` for parsing and routing
+- **Filter Capabilities**: Runtime-discoverable, provider-specific filter declarations
+- **Standard Attributes**: Core defines attribute names; providers map their fields to these
 
 ---
 
@@ -163,12 +214,30 @@ The ranker scores and orders results:
 
 ### Filters
 
-Adaptive filtering based on result types:
+Runtime-discoverable filter capabilities:
 
-1. Extract available filters from aggregated results
-2. Group by attribute with counts
-3. Return dynamic filter options to UI
-4. Apply filters (delegate to providers when possible)
+1. **Provider Declaration**: Each provider declares what it can filter on via `FilterCapabilities()`
+2. **Aggregation**: Manager returns union of all provider capabilities
+3. **Dynamic Extraction**: Extract actual filter values from search results (faceted)
+4. **Application**: Apply filters using provider's native capabilities when possible
+
+**Filter Capability Discovery**:
+- HTTP: `GET /filters` returns `{capabilities: {...}, filters: {...}}`
+- MCP: `get_filters()` tool returns both capabilities and extracted values
+- Capabilities include: supported operations, value ranges, enumerated options
+
+**Example Provider Capabilities**:
+```go
+// Filesystem provider
+"path": {SupportsEq: true, SupportsGlob: true, SupportsContains: true}
+"size": {SupportsEq: true, SupportsRange: true, Min: 0}
+"extension": {SupportsEq: true, SupportsNeq: true}
+
+// Immich provider
+"type": {SupportsEq: true, Options: [{Value: "media.asset.photo"}]}
+"is_favorite": {SupportsEq: true, Options: [{Value: "true"}, {Value: "false"}]}
+"camera": {SupportsEq: true, SupportsContains: true}
+```
 
 ---
 
@@ -177,15 +246,26 @@ Adaptive filtering based on result types:
 ### HTTP API
 
 - `POST /search` - Search with optional filters
-- `GET /entity/:id` - Get entity details with relationships
+- `POST /search/federated` - Search with per-provider results
+- `GET /entity/:id` - Get entity details
+- `GET /entity/:id/expand` - Get entity with relationships
+- `GET /entity/:id/related` - Get related entities
 - `GET /types` - List all types with hierarchy
-- `GET /filters?search=...` - Get available filters for results
+- `GET /types/:name` - Get type details
+- `GET /filters` - Get provider filter capabilities and extracted filter values
+- `GET /providers` - List registered providers
+- `GET /providers/status` - Provider status
+- `GET /health` - Health check
 
 ### MCP Tools
 
-- `search_entities(query, filters)` - Search and return entities
+- `search_entities(query, type, filters, limit)` - Search and return entities
 - `describe_entity(id)` - Get full entity details
-- `expand_entity(id)` - Get entity with related entities
+- `expand_entity(id, depth)` - Get entity with related entities
+- `list_types()` - List all types
+- `get_type(name)` - Get type details
+- `get_related(id, type, limit)` - Get related entities
+- `get_filters(search, type)` - Get filter capabilities and extracted values
 
 ---
 
