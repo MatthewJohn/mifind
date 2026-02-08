@@ -54,22 +54,6 @@ type SearchRequest struct {
 	Offset  int            `json:"offset,omitempty"`
 }
 
-// Entity conversion helpers.
-
-// ToEntityID converts a filesystem file ID to an entity ID.
-func ToEntityID(fileID string) string {
-	return "filesystem:" + fileID
-}
-
-// FromEntityID extracts the file ID from an entity ID.
-func FromEntityID(entityID string) string {
-	// Remove "filesystem:" prefix if present
-	if len(entityID) > 11 && entityID[:11] == "filesystem:" {
-		return entityID[11:]
-	}
-	return entityID
-}
-
 // FileTypeToMifindType converts a file extension to a mifind type.
 func FileTypeToMifindType(extension string, isDir bool) string {
 	if isDir {

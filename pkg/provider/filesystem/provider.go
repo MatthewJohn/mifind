@@ -15,9 +15,10 @@ import (
 // It connects to a filesystem-api service to search and browse files.
 type Provider struct {
 	provider.BaseProvider
-	client *Client
-	url    string
-	apiKey string
+	client     *Client
+	url        string
+	apiKey     string
+	instanceID string // Provider instance ID (e.g., "myfs")
 }
 
 // NewProvider creates a new filesystem provider.
@@ -27,6 +28,11 @@ func NewProvider() *Provider {
 			Name:        "filesystem",
 			Description: "Filesystem provider via filesystem-api",
 			ConfigSchema: map[string]provider.ConfigField{
+				"instance_id": {
+					Type:        "string",
+					Required:    true,
+					Description: "Unique ID for this provider instance (e.g., 'myfs')",
+				},
 				"url": {
 					Type:        "string",
 					Required:    true,
@@ -49,11 +55,18 @@ func (p *Provider) Name() string {
 
 // Initialize sets up the filesystem provider with the given configuration.
 func (p *Provider) Initialize(ctx context.Context, config map[string]any) error {
+	// Get instance ID
+	instanceID, ok := config["instance_id"].(string)
+	if !ok || instanceID == "" {
+		return provider.NewProviderError(provider.ErrorTypeConfig, "instance_id is required", nil)
+	}
+	p.instanceID = instanceID
+
+	// Get URL
 	url, ok := config["url"].(string)
 	if !ok || url == "" {
 		return provider.NewProviderError(provider.ErrorTypeConfig, "url is required", nil)
 	}
-
 	p.url = url
 
 	var apiKey string
@@ -98,7 +111,11 @@ func (p *Provider) DiscoverSince(ctx context.Context, since time.Time) ([]types.
 // Hydrate retrieves full details of a file by ID.
 func (p *Provider) Hydrate(ctx context.Context, id string) (types.Entity, error) {
 	// Extract file ID from entity ID
-	fileID := FromEntityID(id)
+	entityID, err := provider.ParseEntityID(id)
+	if err != nil {
+		return types.Entity{}, provider.ErrNotFound
+	}
+	fileID := entityID.ResourceID()
 
 	// Get file from API
 	resp, err := p.client.GetFile(ctx, fileID)
@@ -111,7 +128,11 @@ func (p *Provider) Hydrate(ctx context.Context, id string) (types.Entity, error)
 
 // GetRelated retrieves entities related to a file.
 func (p *Provider) GetRelated(ctx context.Context, id string, relType string) ([]types.Entity, error) {
-	fileID := FromEntityID(id)
+	entityID, err := provider.ParseEntityID(id)
+	if err != nil {
+		return nil, err
+	}
+	fileID := entityID.ResourceID()
 
 	// Get the file to find related entities
 	resp, err := p.client.GetFile(ctx, fileID)
@@ -177,7 +198,7 @@ func (p *Provider) GetRelated(ctx context.Context, id string, relType string) ([
 		var entities []types.Entity
 		for _, f := range browseResp.Files {
 			// Skip self
-			if ToEntityID(f.ID) != id {
+			if p.BuildEntityID(f.ID).String() != id {
 				entities = append(entities, p.fileToEntity(f))
 			}
 		}
@@ -238,7 +259,7 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 
 // fileToEntity converts a File to an Entity.
 func (p *Provider) fileToEntity(file File) types.Entity {
-	entityID := ToEntityID(file.ID)
+	entityID := p.BuildEntityID(file.ID).String()
 	entityType := FileTypeToMifindType(file.Extension, file.IsDir)
 
 	entity := types.NewEntity(entityID, entityType, p.Name(), file.Name)

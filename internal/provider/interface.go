@@ -2,20 +2,123 @@ package provider
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/yourname/mifind/internal/types"
 )
 
+// Entity ID format: "providerType:instanceID:entityID"
+// Example: "filesystem:myfs:abc123"
+
+const (
+	// EntityIDSeparator is the separator used in entity IDs
+	EntityIDSeparator = ":"
+
+	// NumIDParts is the expected number of parts in an entity ID
+	NumIDParts = 3
+)
+
+// EntityID represents a unique entity identifier with format "providerType:instanceID:entityID".
+type EntityID string
+
+// NewEntityID creates an EntityID from its components.
+func NewEntityID(providerType, instanceID, entityID string) EntityID {
+	return EntityID(providerType + EntityIDSeparator + instanceID + EntityIDSeparator + entityID)
+}
+
+// ParseEntityID parses an EntityID from a string.
+func ParseEntityID(s string) (EntityID, error) {
+	parts := strings.Split(s, EntityIDSeparator)
+	if len(parts) != NumIDParts {
+		return EntityID(""), fmt.Errorf("invalid entity ID format: expected %d parts separated by %q, got %d", NumIDParts, EntityIDSeparator, len(parts))
+	}
+	return EntityID(s), nil
+}
+
+// MustParseEntityID parses an EntityID and panics on error.
+func MustParseEntityID(s string) EntityID {
+	id, err := ParseEntityID(s)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
+// String returns the string representation of the EntityID.
+func (e EntityID) String() string {
+	return string(e)
+}
+
+// ProviderType returns the provider type part of the ID.
+func (e EntityID) ProviderType() string {
+	parts := strings.Split(string(e), EntityIDSeparator)
+	if len(parts) == NumIDParts {
+		return parts[0]
+	}
+	return ""
+}
+
+// InstanceID returns the instance ID part of the ID.
+func (e EntityID) InstanceID() string {
+	parts := strings.Split(string(e), EntityIDSeparator)
+	if len(parts) == NumIDParts {
+		return parts[1]
+	}
+	return ""
+}
+
+// ResourceID returns the resource/entity ID part of the ID.
+func (e EntityID) ResourceID() string {
+	parts := strings.Split(string(e), EntityIDSeparator)
+	if len(parts) == NumIDParts {
+		return parts[2]
+	}
+	return ""
+}
+
+// Parts returns all three parts of the ID (providerType, instanceID, resourceID).
+func (e EntityID) Parts() (string, string, string) {
+	parts := strings.Split(string(e), EntityIDSeparator)
+	if len(parts) == NumIDParts {
+		return parts[0], parts[1], parts[2]
+	}
+	return "", "", ""
+}
+
+// IsValid checks if the EntityID has a valid format.
+func (e EntityID) IsValid() bool {
+	parts := strings.Split(string(e), EntityIDSeparator)
+	return len(parts) == NumIDParts &&
+		parts[0] != "" &&
+		parts[1] != "" &&
+		parts[2] != ""
+}
+
+// BuildEntityID creates an EntityID from components.
+// This is a convenience function equivalent to NewEntityID.
+func BuildEntityID(providerType, instanceID, entityID string) EntityID {
+	return NewEntityID(providerType, instanceID, entityID)
+}
+
 // Provider defines the interface that all data source providers must implement.
 // Providers are responsible for discovering, searching, and hydrating entities
 // from their respective data sources.
+//
+// Entity ID format: "providerType:instanceID:entityID"
+// Example: "filesystem:myfs:abc123"
 type Provider interface {
 	// Name returns the unique name of this provider (e.g., "filesystem", "immich").
 	Name() string
 
+	// InstanceID returns the instance ID for this provider (e.g., "myfs", "photos").
+	// This is set during initialization via the "instance_id" config field.
+	InstanceID() string
+
 	// Initialize sets up the provider with the given configuration.
 	// Called once when the provider is registered.
+	// The config must include an "instance_id" field.
 	Initialize(ctx context.Context, config map[string]any) error
 
 	// Discover performs a full discovery of all entities in this provider.
@@ -227,8 +330,9 @@ func WithCustom(key string, value any) ProviderOption {
 // BaseProvider provides a base implementation that providers can embed.
 // It handles common functionality like config storage.
 type BaseProvider struct {
-	config map[string]any
-	meta   ProviderMetadata
+	config     map[string]any
+	meta       ProviderMetadata
+	instanceID string // Provider instance ID (set during initialization)
 }
 
 // NewBaseProvider creates a new base provider with the given metadata.
@@ -237,6 +341,44 @@ func NewBaseProvider(meta ProviderMetadata) *BaseProvider {
 		config: make(map[string]any),
 		meta:   meta,
 	}
+}
+
+// SetInstanceID sets the provider instance ID.
+// This should be called during Initialize() after reading from config.
+func (b *BaseProvider) SetInstanceID(instanceID string) {
+	b.instanceID = instanceID
+}
+
+// InstanceID returns the provider instance ID.
+func (b *BaseProvider) InstanceID() string {
+	return b.instanceID
+}
+
+// BuildEntityID creates an entity ID using this provider's type and instance ID.
+func (b *BaseProvider) BuildEntityID(entityID string) EntityID {
+	return NewEntityID(b.meta.Name, b.instanceID, entityID)
+}
+
+// StandardConfigFields returns standard configuration fields that all providers should support.
+func StandardConfigFields() map[string]ConfigField {
+	return map[string]ConfigField{
+		"instance_id": {
+			Type:        "string",
+			Required:    true,
+			Description: "Unique ID for this provider instance (e.g., 'myfs', 'photos')",
+		},
+	}
+}
+
+// AddStandardConfigFields adds standard config fields to a config schema.
+func AddStandardConfigFields(schema map[string]ConfigField) map[string]ConfigField {
+	if schema == nil {
+		schema = make(map[string]ConfigField)
+	}
+	for k, v := range StandardConfigFields() {
+		schema[k] = v
+	}
+	return schema
 }
 
 // GetConfig retrieves a configuration value by key.

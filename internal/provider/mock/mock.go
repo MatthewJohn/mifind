@@ -25,14 +25,14 @@ func NewMockProvider() *MockProvider {
 		BaseProvider: *provider.NewBaseProvider(provider.ProviderMetadata{
 			Name:        "mock",
 			Description: "Mock provider for testing",
-			ConfigSchema: map[string]provider.ConfigField{
+			ConfigSchema: provider.AddStandardConfigFields(map[string]provider.ConfigField{
 				"entity_count": {
 					Type:        "int",
 					Required:    false,
 					Description: "Number of mock entities to generate",
 					Default:     10,
 				},
-			},
+			}),
 		}),
 		entities: make(map[string]types.Entity),
 	}
@@ -53,6 +53,13 @@ func (m *MockProvider) Initialize(ctx context.Context, config map[string]any) er
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Get and set instance ID
+	instanceID, ok := config["instance_id"].(string)
+	if !ok || instanceID == "" {
+		instanceID = "default" // Default instance ID
+	}
+	m.SetInstanceID(instanceID)
+
 	entityCount := 10
 	if count, ok := config["entity_count"].(int); ok {
 		entityCount = count
@@ -60,9 +67,8 @@ func (m *MockProvider) Initialize(ctx context.Context, config map[string]any) er
 
 	// Generate mock entities
 	for i := 0; i < entityCount; i++ {
-		id := fmt.Sprintf("mock:entity:%d", i)
-		entity := m.generateMockEntity(id, i)
-		m.entities[id] = entity
+		entity := m.generateMockEntity(i)
+		m.entities[entity.ID] = entity
 	}
 
 	m.initialized = true
@@ -228,8 +234,12 @@ func (m *MockProvider) Clear() {
 }
 
 // generateMockEntity creates a mock entity for testing.
-func (m *MockProvider) generateMockEntity(id string, index int) types.Entity {
+func (m *MockProvider) generateMockEntity(index int) types.Entity {
 	now := time.Now()
+
+	// Build entity ID using provider type, instance ID, and resource ID
+	resourceID := fmt.Sprintf("entity:%d", index)
+	entityID := m.BuildEntityID(resourceID).String()
 
 	// Create different entity types based on index
 	entityType := "item"
@@ -260,7 +270,7 @@ func (m *MockProvider) generateMockEntity(id string, index int) types.Entity {
 	}
 
 	entity := types.Entity{
-		ID:          id,
+		ID:          entityID,
 		Type:        entityType,
 		Provider:    "mock",
 		Title:       title,
@@ -269,7 +279,7 @@ func (m *MockProvider) generateMockEntity(id string, index int) types.Entity {
 		Relationships: []types.Relationship{
 			{
 				Type:     types.RelRelatedTo,
-				TargetID: fmt.Sprintf("mock:entity:%d", (index+1)%10),
+				TargetID: m.BuildEntityID(fmt.Sprintf("entity:%d", (index+1)%10)).String(),
 			},
 		},
 		SearchTokens: []string{title, description, entityType},

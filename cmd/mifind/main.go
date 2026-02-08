@@ -60,6 +60,7 @@ func main() {
 	// Initialize mock provider
 	if config.MockEnabled {
 		mockConfig := map[string]any{
+			"instance_id":  "default",
 			"entity_count": config.MockEntityCount,
 		}
 		if err := providerManager.Initialize(context.Background(), "mock", mockConfig); err != nil {
