@@ -37,7 +37,7 @@ export function SearchResults({ entities, loading, onEntityClick }: SearchResult
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {entities.map((entity) => (
         <EntityCard
-          key={entity.id}
+          key={entity.ID}
           entity={entity}
           onClick={() => onEntityClick(entity)}
         />

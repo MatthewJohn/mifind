@@ -17,10 +17,10 @@ function getTypeIcon(type: string) {
 }
 
 export function EntityCard({ entity, onClick }: EntityCardProps) {
-  const Icon = getTypeIcon(entity.type)
+  const Icon = getTypeIcon(entity.Type)
 
   // Get first few attributes for preview
-  const previewAttrs = entity.attributes.slice(0, 3)
+  const attributeEntries = Object.entries(entity.Attributes || {}).slice(0, 3)
 
   return (
     <div
@@ -34,29 +34,29 @@ export function EntityCard({ entity, onClick }: EntityCardProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1">
             <h3 className="font-semibold text-gray-900 truncate flex-1">
-              {entity.title}
+              {entity.Title}
             </h3>
             <Badge variant="secondary" className="flex-shrink-0 text-xs">
-              {entity.type}
+              {entity.Type}
             </Badge>
           </div>
-          {entity.description && (
+          {entity.Description && (
             <p className="text-sm text-gray-600 line-clamp-2 mb-2">
-              {entity.description}
+              {entity.Description}
             </p>
           )}
           <div className="flex flex-wrap gap-1">
-            {previewAttrs.map((attr) => (
+            {attributeEntries.map(([key, value]) => (
               <span
-                key={attr.key}
+                key={key}
                 className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded"
               >
-                {attr.key}: {attr.value}
+                {key}: {String(value)}
               </span>
             ))}
-            {entity.attributes.length > 3 && (
+            {Object.keys(entity.Attributes || {}).length > 3 && (
               <span className="text-xs text-gray-400">
-                +{entity.attributes.length - 3} more
+                +{Object.keys(entity.Attributes || {}).length - 3} more
               </span>
             )}
           </div>

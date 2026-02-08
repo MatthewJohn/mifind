@@ -23,8 +23,8 @@ function getTypeIcon(type: string) {
   return FileText
 }
 
-function formatDate(timestamp: number): string {
-  return new Date(timestamp * 1000).toLocaleDateString('en-US', {
+function formatDate(timestamp: string): string {
+  return new Date(timestamp).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -36,7 +36,7 @@ function formatDate(timestamp: number): string {
 export function EntityModal({ entity, open, onOpenChange }: EntityModalProps) {
   if (!entity) return null
 
-  const Icon = getTypeIcon(entity.type)
+  const Icon = getTypeIcon(entity.Type)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -47,12 +47,12 @@ export function EntityModal({ entity, open, onOpenChange }: EntityModalProps) {
               <Icon className="h-6 w-6 text-gray-600" />
             </div>
             <div className="flex-1">
-              <DialogTitle className="text-xl">{entity.title}</DialogTitle>
+              <DialogTitle className="text-xl">{entity.Title}</DialogTitle>
               <div className="flex items-center gap-2 mt-2">
-                <Badge variant="secondary">{entity.type}</Badge>
-                {entity.provider && (
+                <Badge variant="secondary">{entity.Type}</Badge>
+                {entity.Provider && (
                   <Badge variant="outline" className="text-xs">
-                    {entity.provider}
+                    {entity.Provider}
                   </Badge>
                 )}
               </div>
@@ -61,48 +61,23 @@ export function EntityModal({ entity, open, onOpenChange }: EntityModalProps) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {entity.description && (
+          {entity.Description && (
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-1">Description</h3>
-              <p className="text-sm text-gray-600">{entity.description}</p>
+              <p className="text-sm text-gray-600">{entity.Description}</p>
             </div>
           )}
 
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Calendar className="h-4 w-4" />
-            <span>Modified: {formatDate(entity.timestamp)}</span>
+            <span>Modified: {formatDate(entity.Timestamp)}</span>
           </div>
 
-          {entity.attributes.length > 0 && (
+          {entity.Attributes && Object.keys(entity.Attributes).length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">Attributes</h3>
               <dl className="grid grid-cols-2 gap-2 text-sm">
-                {entity.attributes.map((attr) => (
-                  <div key={attr.key} className="bg-gray-50 rounded px-3 py-2">
-                    <dt className="text-xs text-gray-500">{attr.key}</dt>
-                    <dd className="text-gray-900 font-medium">{attr.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          )}
-
-          {entity.thumbnail && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Preview</h3>
-              <img
-                src={entity.thumbnail}
-                alt={entity.title}
-                className="rounded-lg border border-gray-200 max-w-full"
-              />
-            </div>
-          )}
-
-          {entity.metadata && Object.keys(entity.metadata).length > 0 && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Metadata</h3>
-              <dl className="grid grid-cols-2 gap-2 text-sm">
-                {Object.entries(entity.metadata).map(([key, value]) => (
+                {Object.entries(entity.Attributes).map(([key, value]) => (
                   <div key={key} className="bg-gray-50 rounded px-3 py-2">
                     <dt className="text-xs text-gray-500">{key}</dt>
                     <dd className="text-gray-900 font-medium text-xs break-all">
@@ -114,8 +89,40 @@ export function EntityModal({ entity, open, onOpenChange }: EntityModalProps) {
             </div>
           )}
 
+          {entity.Relationships && entity.Relationships.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Relationships</h3>
+              <dl className="grid grid-cols-2 gap-2 text-sm">
+                {entity.Relationships.map((rel, idx) => (
+                  <div key={idx} className="bg-gray-50 rounded px-3 py-2">
+                    <dt className="text-xs text-gray-500">{rel.Type}</dt>
+                    <dd className="text-gray-900 font-medium text-xs break-all">
+                      {rel.TargetID}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          {entity.SearchTokens && entity.SearchTokens.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Search Terms</h3>
+              <div className="flex flex-wrap gap-1">
+                {entity.SearchTokens.map((token, idx) => (
+                  <span key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                    {token}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="text-xs text-gray-400 pt-2 border-t">
-            ID: {entity.id}
+            ID: {entity.ID}
+            {entity.score !== undefined && (
+              <span className="ml-3">Score: {entity.score.toFixed(3)}</span>
+            )}
           </div>
         </div>
       </DialogContent>

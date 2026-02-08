@@ -69,46 +69,42 @@ export function FilterSidebar() {
 
         {!isLoading && filterData && (
           <>
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Type</h3>
-              <div className="space-y-1">
-                {filterData.typeFilters.map((type) => (
-                  <label key={type} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedTypes.includes(type)}
-                      onChange={() => toggleType(type)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-600">{type}</span>
-                  </label>
-                ))}
+            {filterData.filters && filterData.filters.TypeCounts && Object.keys(filterData.filters.TypeCounts).length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Type</h3>
+                <div className="space-y-1">
+                  {Object.entries(filterData.filters.TypeCounts).map(([type, count]) => (
+                    <label key={type} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedTypes.includes(type)}
+                        onChange={() => toggleType(type)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-600">
+                        {type} ({count})
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {filterData.attributeFilters.length > 0 && (
+            {filterData.filters && filterData.filters.AttributeCounts && (
               <div>
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Attributes</h3>
                 <div className="space-y-3">
-                  {filterData.attributeFilters.slice(0, 5).map((attr) => (
-                    <div key={attr.key}>
-                      <h4 className="text-xs font-medium text-gray-500 mb-1">{attr.label}</h4>
-                      {attr.type === 'select' ? (
-                        <select className="w-full text-sm border border-gray-300 rounded px-2 py-1">
-                          <option value="">All</option>
-                          {attr.options?.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label} {opt.count && `(${opt.count})`}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          placeholder={`Search ${attr.label.toLowerCase()}`}
-                          className="w-full text-sm border border-gray-300 rounded px-2 py-1"
-                        />
-                      )}
+                  {Object.entries(filterData.filters.AttributeCounts).slice(0, 5).map(([attr, values]) => (
+                    <div key={attr}>
+                      <h4 className="text-xs font-medium text-gray-500 mb-1">{attr}</h4>
+                      <select className="w-full text-sm border border-gray-300 rounded px-2 py-1">
+                        <option value="">All</option>
+                        {Object.entries(values as Record<string, number>).map(([value, count]) => (
+                          <option key={value} value={value}>
+                            {value} ({count})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   ))}
                 </div>

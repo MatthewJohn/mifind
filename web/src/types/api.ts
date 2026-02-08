@@ -1,15 +1,22 @@
 // API Types matching Go structs
 
 export interface Entity {
-  id: string
-  type: string
-  title: string
-  description?: string
-  timestamp: number
-  attributes: EntityAttribute[]
-  metadata?: Record<string, any>
-  thumbnail?: string
-  provider?: string
+  ID: string
+  Type: string
+  Title: string
+  Description?: string
+  Timestamp: string  // ISO timestamp string
+  Attributes: Record<string, any>
+  Relationships?: Relationship[]
+  SearchTokens?: string[]
+  Thumbnail?: string
+  Provider?: string
+  score?: number
+}
+
+export interface Relationship {
+  Type: string
+  TargetID: string
 }
 
 export interface EntityAttribute {
@@ -20,13 +27,11 @@ export interface EntityAttribute {
 }
 
 export interface SearchResult {
-  query: string
-  results: Entity[]
-  total: number
-  page: number
-  perPage: number
-  facets?: SearchFacet[]
-  executionTime: number
+  entities: Entity[]
+  total_count: number
+  type_counts: Record<string, number>
+  duration_ms: number
+  query?: string
 }
 
 export interface SearchFacet {
@@ -78,6 +83,12 @@ export interface SearchFilter {
 }
 
 export interface FilterInfo {
-  attributeFilters: FilterOption[]
-  typeFilters: string[]
+  capabilities: Record<string, any>
+  filters?: FilterResult
+  values?: Record<string, FilterOption[]>
+}
+
+export interface FilterResult {
+  TypeCounts: Record<string, number>
+  AttributeCounts: Record<string, Record<string, number>>
 }

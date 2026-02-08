@@ -59,10 +59,10 @@ export function SearchPage() {
                 <span className="text-red-600">Error searching</span>
               ) : data ? (
                 <>
-                  Found <span className="font-semibold">{data.total}</span> results
-                  {data.executionTime && (
+                  Found <span className="font-semibold">{data.total_count}</span> results
+                  {data.duration_ms && (
                     <span className="text-gray-400 ml-2">
-                      ({data.executionTime.toFixed(0)}ms)
+                      ({data.duration_ms.toFixed(0)}ms)
                     </span>
                   )}
                 </>
@@ -72,7 +72,7 @@ export function SearchPage() {
         )}
 
         <SearchResults
-          entities={data?.results || []}
+          entities={data?.entities || []}
           loading={isLoading}
           onEntityClick={handleEntityClick}
         />
