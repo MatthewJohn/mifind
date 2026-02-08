@@ -102,6 +102,15 @@ func BuildEntityID(providerType, instanceID, entityID string) EntityID {
 	return NewEntityID(providerType, instanceID, entityID)
 }
 
+// FilterValuesProvider is an optional interface that providers can implement
+// to return pre-obtained filter values (values known from the source without searching).
+// Examples: People/Albums in Immich, Genres in Jellyfin, Artists in music libraries.
+type FilterValuesProvider interface {
+	// FilterValues returns available filter values for the given filter name.
+	// Returns an empty slice if the filter is not supported or has no pre-obtained values.
+	FilterValues(ctx context.Context, filterName string) ([]FilterOption, error)
+}
+
 // FilterCapability describes how a provider supports filtering on a specific attribute.
 // This is runtime-discoverable and provider-specific, allowing each provider to declare
 // which attributes can be filtered on and how.

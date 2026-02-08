@@ -17,9 +17,9 @@ import (
 	"github.com/yourname/mifind/internal/api"
 	"github.com/yourname/mifind/internal/provider"
 	"github.com/yourname/mifind/internal/provider/mock"
-	"github.com/yourname/mifind/pkg/provider/filesystem"
 	"github.com/yourname/mifind/internal/search"
 	"github.com/yourname/mifind/internal/types"
+	"github.com/yourname/mifind/pkg/provider/filesystem"
 )
 
 func main() {
@@ -154,9 +154,9 @@ func main() {
 
 // Config holds the application configuration.
 type Config struct {
-	HTTPPort            int                      `mapstructure:"http_port"`
-	MockEnabled         bool                     `mapstructure:"mock_enabled"`
-	MockEntityCount     int                      `mapstructure:"mock_entity_count"`
+	HTTPPort            int                        `mapstructure:"http_port"`
+	MockEnabled         bool                       `mapstructure:"mock_enabled"`
+	MockEntityCount     int                        `mapstructure:"mock_entity_count"`
 	FilesystemProviders []FilesystemProviderConfig `mapstructure:"filesystem_providers"`
 }
 

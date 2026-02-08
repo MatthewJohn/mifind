@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -331,7 +332,7 @@ func (h *Handlers) GetType(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetFilters returns available filters for a search query.
-// It also returns provider filter capabilities.
+// It also returns provider filter capabilities and pre-obtained filter values.
 func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("search")
 	typeName := r.URL.Query().Get("type")
@@ -345,6 +346,8 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 
 	// Execute search to get entities (if query is provided)
 	var filterResult search.FilterResult
+	var preObtainedValues map[string][]provider.FilterOption
+
 	if query != "" || typeName != "" {
 		searchQuery := search.NewSearchQuery(query)
 		searchQuery.Limit = 100 // Limit for filter extraction
@@ -361,12 +364,38 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 
 		// Extract filters from search results
 		filterResult = h.filters.ExtractFilters(entities, typeName)
+	} else {
+		// No search query - fetch pre-obtained filter values
+		preObtainedValues = h.getPreObtainedFilterValues(r.Context(), capabilities)
 	}
 
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"capabilities": capabilities,
 		"filters":      filterResult,
+		"values":       preObtainedValues, // New field
 	})
+}
+
+// getPreObtainedFilterValues fetches pre-obtained filter values from providers.
+func (h *Handlers) getPreObtainedFilterValues(ctx context.Context, capabilities map[string]provider.FilterCapability) map[string][]provider.FilterOption {
+	result := make(map[string][]provider.FilterOption)
+
+	// Get values for each filter that has capabilities
+	for filterName := range capabilities {
+		values, err := h.manager.GetFilterValues(ctx, filterName)
+		if err != nil {
+			h.logger.Warn().
+				Str("filter", filterName).
+				Err(err).
+				Msg("Failed to get pre-obtained filter values")
+			continue
+		}
+		if len(values) > 0 {
+			result[filterName] = values
+		}
+	}
+
+	return result
 }
 
 // ListProviders returns all registered providers.

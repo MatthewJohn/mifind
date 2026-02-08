@@ -3,6 +3,7 @@ package immich
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,14 +19,25 @@ type Client struct {
 }
 
 // NewClient creates a new Immich API client.
-func NewClient(baseURL, apiKey string) *Client {
-	return &Client{
+// If insecureSkipVerify is true, TLS certificate verification will be skipped.
+func NewClient(baseURL, apiKey string, insecureSkipVerify bool) *Client {
+	client := &Client{
 		baseURL: baseURL,
 		apiKey:  apiKey,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
+
+	if insecureSkipVerify {
+		client.httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}
+	}
+
+	return client
 }
 
 // Search performs a search query against the Immich API.
@@ -96,12 +108,18 @@ func (c *Client) GetAlbumAssets(ctx context.Context, albumID string, limit int) 
 }
 
 // ListAlbums lists all albums.
+// If limit is 0, returns all albums (pagination not implemented).
 func (c *Client) ListAlbums(ctx context.Context, limit int) ([]Album, error) {
 	url := fmt.Sprintf("%s/api/albums", c.baseURL)
 
+	pageSize := limit
+	if limit == 0 {
+		pageSize = 1000 // Use a large number for "all"
+	}
+
 	reqBody := map[string]any{
 		"page":     1,
-		"pageSize": limit,
+		"pageSize": pageSize,
 	}
 
 	var result struct {
@@ -118,12 +136,18 @@ func (c *Client) ListAlbums(ctx context.Context, limit int) ([]Album, error) {
 }
 
 // ListPeople lists all detected people.
+// If limit is 0, returns all people (pagination not implemented).
 func (c *Client) ListPeople(ctx context.Context, limit int) ([]Person, error) {
 	url := fmt.Sprintf("%s/api/people", c.baseURL)
 
+	pageSize := limit
+	if limit == 0 {
+		pageSize = 1000 // Use a large number for "all"
+	}
+
 	reqBody := map[string]any{
 		"page":     1,
-		"pageSize": limit,
+		"pageSize": pageSize,
 	}
 
 	var result struct {

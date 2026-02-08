@@ -532,6 +532,37 @@ func maxPtr(a, b *float64) *float64 {
 	return b
 }
 
+// GetFilterValues returns pre-obtained filter values from all providers that support it.
+// Aggregates values from all providers that implement FilterValuesProvider.
+func (m *Manager) GetFilterValues(ctx context.Context, filterName string) ([]FilterOption, error) {
+	m.mu.RLock()
+	providerList := make([]Provider, 0, len(m.providers))
+	for _, inst := range m.providers {
+		if inst.Status.Connected {
+			providerList = append(providerList, inst.Provider)
+		}
+	}
+	m.mu.RUnlock()
+
+	var allOptions []FilterOption
+	for _, prov := range providerList {
+		if fv, ok := prov.(FilterValuesProvider); ok {
+			options, err := fv.FilterValues(ctx, filterName)
+			if err != nil {
+				m.logger.Warn().
+					Str("provider", prov.Name()).
+					Str("filter", filterName).
+					Err(err).
+					Msg("Failed to get filter values")
+				continue
+			}
+			allOptions = append(allOptions, options...)
+		}
+	}
+
+	return allOptions, nil
+}
+
 // mergeFilterOptions merges filter options from two sources.
 func mergeFilterOptions(a, b []FilterOption) []FilterOption {
 	if len(a) == 0 {

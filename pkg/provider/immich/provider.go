@@ -33,6 +33,11 @@ func NewProvider() *Provider {
 					Required:    true,
 					Description: "Immich API key",
 				},
+				"insecure_skip_verify": {
+					Type:        "bool",
+					Required:    false,
+					Description: "Skip TLS certificate verification (for self-signed certificates)",
+				},
 			}),
 		}),
 	}
@@ -64,8 +69,14 @@ func (p *Provider) Initialize(ctx context.Context, config map[string]any) error 
 		return provider.NewProviderError(provider.ErrorTypeConfig, "api_key is required", nil)
 	}
 
+	// Get insecure_skip_verify option (optional, defaults to false)
+	insecureSkipVerify := false
+	if skipVerify, ok := config["insecure_skip_verify"].(bool); ok {
+		insecureSkipVerify = skipVerify
+	}
+
 	// Create client
-	p.client = NewClient(url, apiKey)
+	p.client = NewClient(url, apiKey, insecureSkipVerify)
 
 	// Test connection
 	if err := p.client.Health(ctx); err != nil {
@@ -227,6 +238,90 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// FilterValues returns pre-obtained filter values for supported filters.
+func (p *Provider) FilterValues(ctx context.Context, filterName string) ([]provider.FilterOption, error) {
+	switch filterName {
+	case "person":
+		return p.getPeopleFilterOptions(ctx)
+	case types.AttrAlbum:
+		return p.getAlbumsFilterOptions(ctx)
+	case types.AttrLocation:
+		return p.getLocationFilterOptions(ctx)
+	default:
+		return []provider.FilterOption{}, nil
+	}
+}
+
+// getPeopleFilterOptions returns all people as filter options.
+func (p *Provider) getPeopleFilterOptions(ctx context.Context) ([]provider.FilterOption, error) {
+	people, err := p.client.ListPeople(ctx, 0) // 0 = no limit, get all
+	if err != nil {
+		return nil, fmt.Errorf("failed to list people: %w", err)
+	}
+
+	options := make([]provider.FilterOption, len(people))
+	for i, person := range people {
+		label := person.Name
+		if label == "" {
+			label = "Unknown Person"
+		}
+		options[i] = provider.FilterOption{
+			Value: person.ID,
+			Label: label,
+			Count: 0, // Could be enhanced to include asset count
+		}
+	}
+	return options, nil
+}
+
+// getAlbumsFilterOptions returns all albums as filter options.
+func (p *Provider) getAlbumsFilterOptions(ctx context.Context) ([]provider.FilterOption, error) {
+	albums, err := p.client.ListAlbums(ctx, 0) // 0 = no limit, get all
+	if err != nil {
+		return nil, fmt.Errorf("failed to list albums: %w", err)
+	}
+
+	options := make([]provider.FilterOption, len(albums))
+	for i, album := range albums {
+		options[i] = provider.FilterOption{
+			Value: album.ID,
+			Label: album.AlbumName,
+			Count: album.AssetCount,
+		}
+	}
+	return options, nil
+}
+
+// getLocationFilterOptions returns unique locations as filter options.
+func (p *Provider) getLocationFilterOptions(ctx context.Context) ([]provider.FilterOption, error) {
+	// For locations, we need to extract unique location values from assets
+	// This requires a search with no query to get all assets, then extract locations
+	searchResult, err := p.client.Search(ctx, "", 1000)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search for locations: %w", err)
+	}
+
+	// Extract unique locations
+	locationMap := make(map[string]int)
+	if searchResult.Assets != nil {
+		for _, asset := range searchResult.Assets.Items {
+			if asset.Location != "" {
+				locationMap[asset.Location]++
+			}
+		}
+	}
+
+	options := make([]provider.FilterOption, 0, len(locationMap))
+	for location, count := range locationMap {
+		options = append(options, provider.FilterOption{
+			Value: location,
+			Label: location,
+			Count: count,
+		})
+	}
+	return options, nil
+}
+
 // FilterCapabilities returns the filter capabilities for the Immich provider.
 func (p *Provider) FilterCapabilities(ctx context.Context) (map[string]provider.FilterCapability, error) {
 	return map[string]provider.FilterCapability{
@@ -294,6 +389,16 @@ func (p *Provider) FilterCapabilities(ctx context.Context) (map[string]provider.
 			SupportsEq:       true,
 			SupportsContains: true,
 			Description:      "Location name",
+		},
+		types.AttrAlbum: {
+			Type:        types.AttributeTypeString,
+			SupportsEq:  true,
+			Description: "Album name",
+		},
+		"person": {
+			Type:        types.AttributeTypeString,
+			SupportsEq:  true,
+			Description: "Person (detected faces)",
 		},
 	}, nil
 }
