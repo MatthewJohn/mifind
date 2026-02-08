@@ -145,8 +145,26 @@ vim config/filesystem-api.yaml
 ### mifind API
 
 ```bash
+# With API only (no web UI)
+go run cmd/mifind/main.go
+
+# With web UI (requires building React app first)
+cd web && npm install && npm run build && ./copy-to-api.sh && cd ..
 go run cmd/mifind/main.go
 ```
+
+The web UI will be available at http://localhost:8080
+
+**Development mode** (with hot-reload):
+```bash
+# Terminal 1: React dev server
+cd web && npm run dev
+
+# Terminal 2: Go API
+go run cmd/mifind/main.go
+```
+
+Visit http://localhost:5173 for the React UI with hot-reload.
 
 ### filesystem-api
 
@@ -168,6 +186,8 @@ Environment variables:
 | filesystem-api | `MIFIND_FILESYSTEM_` | `MIFIND_FILESYSTEM_MEILISEARCH_URL=http://localhost:7700` |
 
 **API Docs:** See [docs/API.md](docs/API.md) for complete API reference.
+
+**Web UI:** See [web/README.md](web/README.md) for React UI documentation.
 
 ---
 

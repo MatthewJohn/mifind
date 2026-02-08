@@ -1,14 +1,17 @@
 # mifind API Configuration
 
-server:
-  port: 8080
-  read_timeout: 30
-  write_timeout: 30
+http_port: 8080
+
+# Web UI configuration
+ui:
+  enabled: true          # Enable web UI (requires built React app)
+  dev_proxy: false       # If true, proxy to development server instead of serving built files
+  dev_url: "http://localhost:5173"  # Vite dev server URL
+  index_path: ""         # Custom path to index.html (default: embedded)
 
 # Mock provider for testing
-mock:
-  enabled: true
-  entity_count: 10
+mock_enabled: true
+mock_entity_count: 10
 
 # Filesystem providers (commented out - enable as needed)
 # Each instance connects to a filesystem-api service

@@ -21,6 +21,11 @@
 config/*.yaml
 !config/examples/*.yaml
 
+# React build artifacts (embedded in Go binary)
+internal/api/web/
+web/dist/
+web/node_modules/
+
 # IDE
 .vscode/
 .idea/

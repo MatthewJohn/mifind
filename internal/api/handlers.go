@@ -49,29 +49,37 @@ func NewHandlers(
 
 // RegisterRoutes registers all API routes with the given router.
 func (h *Handlers) RegisterRoutes(router *mux.Router) {
+	// API subrouter for API endpoints
+	apiRouter := router.PathPrefix("/api").Subrouter()
+
 	// Search endpoints
-	router.HandleFunc("/search", h.Search).Methods("POST")
-	router.HandleFunc("/search/federated", h.SearchFederated).Methods("POST")
+	apiRouter.HandleFunc("/search", h.Search).Methods("POST")
+	apiRouter.HandleFunc("/search/federated", h.SearchFederated).Methods("POST")
 
 	// Entity endpoints
-	router.HandleFunc("/entity/{id}", h.GetEntity).Methods("GET")
-	router.HandleFunc("/entity/{id}/expand", h.ExpandEntity).Methods("GET")
-	router.HandleFunc("/entity/{id}/related", h.GetRelated).Methods("GET")
+	apiRouter.HandleFunc("/entity/{id}", h.GetEntity).Methods("GET")
+	apiRouter.HandleFunc("/entity/{id}/expand", h.ExpandEntity).Methods("GET")
+	apiRouter.HandleFunc("/entity/{id}/related", h.GetRelated).Methods("GET")
 
 	// Type endpoints
-	router.HandleFunc("/types", h.ListTypes).Methods("GET")
-	router.HandleFunc("/types/{name}", h.GetType).Methods("GET")
+	apiRouter.HandleFunc("/types", h.ListTypes).Methods("GET")
+	apiRouter.HandleFunc("/types/{name}", h.GetType).Methods("GET")
 
 	// Filter endpoints
-	router.HandleFunc("/filters", h.GetFilters).Methods("GET")
+	apiRouter.HandleFunc("/filters", h.GetFilters).Methods("GET")
 
 	// Provider endpoints
-	router.HandleFunc("/providers", h.ListProviders).Methods("GET")
-	router.HandleFunc("/providers/status", h.ProvidersStatus).Methods("GET")
+	apiRouter.HandleFunc("/providers", h.ListProviders).Methods("GET")
+	apiRouter.HandleFunc("/providers/status", h.ProvidersStatus).Methods("GET")
 
 	// Health check
-	router.HandleFunc("/health", h.Health).Methods("GET")
+	apiRouter.HandleFunc("/health", h.Health).Methods("GET")
+
+	// Root index
 	router.HandleFunc("/", h.Index).Methods("GET")
+
+	// Serve static files (React UI) - must be last as it catches all routes
+	router.PathPrefix("/").Handler(http.FileServer(SPAFileSystem()))
 }
 
 // SearchRequest represents a search request.

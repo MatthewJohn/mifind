@@ -38,6 +38,7 @@ func main() {
 
 	logger.Info().
 		Int("http_port", config.HTTPPort).
+		Bool("ui_enabled", config.UI.Enabled).
 		Msg("Starting mifind API server")
 
 	// Initialize type registry
@@ -180,10 +181,19 @@ func main() {
 // Config holds the application configuration.
 type Config struct {
 	HTTPPort            int                        `mapstructure:"http_port"`
+	UI                  UIConfig                   `mapstructure:"ui"`
 	MockEnabled         bool                       `mapstructure:"mock_enabled"`
 	MockEntityCount     int                        `mapstructure:"mock_entity_count"`
 	FilesystemProviders []FilesystemProviderConfig `mapstructure:"filesystem_providers"`
 	ImmichProviders     []ImmichProviderConfig     `mapstructure:"immich_providers"`
+}
+
+// UIConfig holds configuration for the web UI.
+type UIConfig struct {
+	Enabled   bool   `mapstructure:"enabled"`
+	DevProxy  bool   `mapstructure:"dev_proxy"`
+	DevURL    string `mapstructure:"dev_url"`
+	IndexPath string `mapstructure:"index_path"`
 }
 
 // FilesystemProviderConfig holds configuration for a filesystem provider instance.
