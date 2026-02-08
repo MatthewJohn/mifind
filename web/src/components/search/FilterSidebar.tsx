@@ -71,7 +71,7 @@ export function FilterSidebar() {
         {!isLoading && filterData && (
           <>
             {/* Type filter - use capabilities.type.Options if available, otherwise TypeCounts from search results */}
-            {(filterData.capabilities?.type?.Options || (filterData.filters?.TypeCounts && Object.keys(filterData.filters.TypeCounts).length > 0)) && (
+            {(filterData.capabilities?.['type']?.Options || (filterData.filters?.TypeCounts && Object.keys(filterData.filters.TypeCounts).length > 0)) && (
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Type</h3>
                 <div className="space-y-1">
@@ -92,7 +92,7 @@ export function FilterSidebar() {
                     ))
                   ) : (
                     // Show predefined types from capabilities
-                    filterData.capabilities?.type?.Options?.map((opt: any) => (
+                    filterData.capabilities?.['type']?.Options?.map((opt: any) => (
                       <label key={opt.Value} className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
