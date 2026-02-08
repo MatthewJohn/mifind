@@ -23,8 +23,10 @@ mifind/
 ├── cmd/
 │   ├── mifind/
 │   │   └── main.go              # HTTP API server entry point
-│   └── mifind-mcp/
-│       └── main.go              # MCP server entry point (separate binary)
+│   ├── mifind-mcp/
+│   │   └── main.go              # MCP server entry point (separate binary)
+│   └── filesystem-api/
+│       └── main.go              # Standalone filesystem API service
 ├── internal/
 │   ├── mifind/
 │   │   ├── server.go            # HTTP server setup
@@ -51,15 +53,18 @@ mifind/
 │       ├── handlers.go          # HTTP handlers
 │       └── mcp_tools.go         # MCP tool implementations
 ├── pkg/
-│   └── provider/                # External provider implementations
-│       ├── filesystem/          # Filesystem provider
-│       │   ├── provider.go
-│       │   ├── indexer.go
-│       │   └── types.go
-│       └── immich/              # Immich provider (photos/videos with geo/ML)
-│           ├── provider.go
-│           ├── client.go
-│           └── types.go
+│   ├── provider/                # Provider implementations (call external APIs)
+│   │   ├── filesystem/          # Filesystem provider (calls filesystem-api)
+│   │   │   ├── provider.go
+│   │   │   ├── client.go        # HTTP client for filesystem-api
+│   │   │   └── types.go         # API type mappings
+│   │   └── immich/              # Immich provider (photos/videos with geo/ML)
+│   │       ├── provider.go
+│   │       ├── client.go        # HTTP client for Immich API
+│   │       └── types.go         # API type mappings
+│   └── shared/                  # Shared code between mifind and filesystem-api
+│       ├── types/               # Common entity/type definitions
+│       └── util/                # Shared utilities
 ├── go.mod
 ├── go.sum
 └── README.md
@@ -186,12 +191,77 @@ Adaptive filtering based on result types:
 
 ## Provider Implementations
 
+### Filesystem API with Full-Text Search
+
+The filesystem API is a standalone service that provides full-text search over filesystem metadata:
+
+```
+┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
+│   mifind API    │──────│ Filesystem      │──────│  Filesystem     │
+│   (HTTP/MCP)    │      │ Provider        │      │  API Service    │
+└─────────────────┘      │ (client code)   │      └─────────────────┘
+                         └─────────────────┘              │
+                                                        │ scans + indexes
+                                                        ▼
+                                             ┌─────────────────────┐
+                                             │  Isolated Meilisearch│
+                                             │  (full-text search) │
+                                             └─────────────────────┘
+```
+
+**Why Meilisearch for filesystem-api?**
+- Directory scanning on every request is expensive
+- Full-text search over filenames/paths requires a fast index
+- Tokenization, normalization, partial matches (as per DESIGN.md Search Model)
+- Fast faceted aggregations (file types, extensions, sizes)
+- Incremental updates: track modified files by timestamp/inode
+
+**Isolation**: This is a completely isolated Meilisearch instance
+- Not shared with mifind core
+- Can be rebuilt/restarted without affecting other services
+- Each filesystem-api deployment has its own Meilisearch instance
+
+**Search capabilities** (per DESIGN.md):
+- Full-text search across indexed item summaries
+- Tokenization & normalization: filename, extension, path
+- Partial matches, typo tolerance
+- Two-phase adaptive search: broad then narrow by filters
+
+### Architecture Pattern
+
+All providers follow the same pattern: they are **external APIs** that mifind calls via a provider client. This includes the filesystem provider, which is built within this project but runs as a separate service.
+
+```
+┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
+│   mifind API    │──────│ Filesystem      │──────│  Filesystem     │
+│   (HTTP/MCP)    │      │ Provider        │      │  API Service    │
+└─────────────────┘      │ (client code)   │      └─────────────────┘
+                         └─────────────────┘              │
+                                                        │ scans
+                                                        ▼
+                                                   actual files
+```
+
 ### Filesystem Provider
 
-- **Scans**: Configured directory paths
-- **Types**: File, MediaFile, DocumentFile
-- **Attributes**: path, size, extension, mime_type, modified_time
-- **Relationships**: parent_folder, children
+The filesystem provider consists of two parts:
+
+1. **`cmd/filesystem-api/`** - Standalone HTTP API service:
+   - Scans configured directory paths and indexes them
+   - Full-text search using isolated database (SQLite FTS5 or Tantivy)
+   - Exposes REST endpoints: `/search`, `/browse`, `/file/:id`
+   - Handles file type detection, metadata extraction
+   - Supports incremental updates via file modification tracking
+   - Reuses shared types/utilities from `pkg/shared/`
+
+2. **`pkg/provider/filesystem/`** - mifind provider client:
+   - Calls the filesystem-api via HTTP
+   - Maps API responses to internal Entity types
+   - Handles connection, authentication, retries
+
+**Types**: File, MediaFile, DocumentFile
+**Attributes**: path, size, extension, mime_type, modified_time
+**Relationships**: parent_folder, children
 
 ### Immich Provider
 
@@ -234,7 +304,7 @@ providers:
 - **Logging**: `github.com/rs/zerolog`
 - **Config**: `github.com/spf13/viper`
 - **Testing**: `testing` + `github.com/stretchr/testify`
-- **Future**: `github.com/meilisearch/meilisearch-go`
+- **Meilisearch** (filesystem-api only): `github.com/meilisearch/meilisearch-go`
 
 ---
 
