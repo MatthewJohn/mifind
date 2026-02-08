@@ -58,6 +58,10 @@ func (h *Handlers) RegisterRoutes(router *mux.Router) {
 	// Stats endpoint
 	router.HandleFunc("/stats", h.Stats).Methods("GET")
 
+	// Scan endpoints
+	router.HandleFunc("/scan", h.Scan).Methods("POST")
+	router.HandleFunc("/scan/incremental", h.ScanIncremental).Methods("POST")
+
 	// Index endpoint
 	router.HandleFunc("/", h.Index).Methods("GET")
 }
@@ -78,6 +82,19 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Limit > 1000 {
 		req.Limit = 1000
+	}
+
+	// Check if we need to auto-scan (if index is empty)
+	stats, err := h.service.GetStats(r.Context())
+	if err == nil && stats.IndexedDocuments == 0 {
+		h.logger.Info().Msg("Index empty, triggering auto-scan in background")
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			if _, err := h.service.Scan(ctx); err != nil {
+				h.logger.Error().Err(err).Msg("Auto-scan failed")
+			}
+		}()
 	}
 
 	// Execute search
@@ -184,13 +201,61 @@ func (h *Handlers) Index(w http.ResponseWriter, r *http.Request) {
 		"version":     h.version,
 		"description": "Filesystem search and browse API",
 		"endpoints": map[string]string{
-			"POST /search":      "Search for files",
-			"GET  /browse":      "Browse directory",
-			"GET  /file/{id}":   "Get file by ID",
-			"GET  /health":      "Health check",
-			"GET  /stats":       "Service statistics",
-			"GET  /":            "API index",
+			"POST /search":           "Search for files",
+			"GET  /browse":           "Browse directory",
+			"GET  /file/{id}":        "Get file by ID",
+			"POST /scan":             "Trigger full scan",
+			"POST /scan/incremental": "Trigger incremental scan",
+			"GET  /health":           "Health check",
+			"GET  /stats":            "Service statistics",
+			"GET  /":                "API index",
 		},
+	})
+}
+
+// Scan triggers a full filesystem scan and index.
+func (h *Handlers) Scan(w http.ResponseWriter, r *http.Request) {
+	h.logger.Info().Msg("Full scan requested")
+
+	result, err := h.service.Scan(r.Context())
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Scan failed")
+		h.writeError(w, http.StatusInternalServerError, fmt.Sprintf("scan failed: %v", err))
+		return
+	}
+
+	h.logger.Info().
+		Int("files_scanned", result.FilesScanned).
+		Msg("Scan completed")
+
+	h.writeJSON(w, http.StatusAccepted, map[string]interface{}{
+		"message":       "Scan completed",
+		"files_scanned": result.FilesScanned,
+		"scan_time":     result.ScanTime,
+	})
+}
+
+// ScanIncremental triggers an incremental scan.
+func (h *Handlers) ScanIncremental(w http.ResponseWriter, r *http.Request) {
+	h.logger.Info().Msg("Incremental scan requested")
+
+	result, err := h.service.ScanIncremental(r.Context())
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Incremental scan failed")
+		h.writeError(w, http.StatusInternalServerError, fmt.Sprintf("incremental scan failed: %v", err))
+		return
+	}
+
+	h.logger.Info().
+		Int("files_scanned", result.FilesScanned).
+		Time("since", result.Since).
+		Msg("Incremental scan completed")
+
+	h.writeJSON(w, http.StatusAccepted, map[string]interface{}{
+		"message":       "Incremental scan completed",
+		"files_scanned": result.FilesScanned,
+		"scan_time":     result.ScanTime,
+		"since":         result.Since,
 	})
 }
 

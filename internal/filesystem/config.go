@@ -38,6 +38,7 @@ type ScanConfig struct {
 	ExcludePatterns []string `mapstructure:"exclude_patterns"`
 	FollowSymlinks  bool     `mapstructure:"follow_symlinks"`
 	MaxDepth        int      `mapstructure:"max_depth"`
+	AutoScan        bool     `mapstructure:"auto_scan"`
 }
 
 // APIConfig holds API configuration.
@@ -110,6 +111,7 @@ func setDefaults() {
 	})
 	viper.SetDefault("scan.follow_symlinks", false)
 	viper.SetDefault("scan.max_depth", 20)
+	viper.SetDefault("scan.auto_scan", false)
 
 	// API defaults
 	viper.SetDefault("api.api_key", "")

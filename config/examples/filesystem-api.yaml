@@ -36,6 +36,7 @@ scan:
     - "*.pyc"
   follow_symlinks: false
   max_depth: 20
+  auto_scan: false  # Set to true to scan on startup
 
 api:
   api_key: ""
