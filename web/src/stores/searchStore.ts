@@ -11,7 +11,9 @@ interface SearchStore {
   filters: SearchFilter[]
   setFilters: (filters: SearchFilter[]) => void
   addFilter: (filter: SearchFilter) => void
+  addFilters: (newFilters: SearchFilter[]) => void
   removeFilter: (key: string) => void
+  removeFiltersByKey: (key: string) => void
   clearFilters: () => void
 
   selectedTypes: string[]
@@ -37,7 +39,13 @@ export const useSearchStore = create<SearchStore>((set) => ({
   addFilter: (filter) => set((state) => ({
     filters: [...state.filters.filter(f => f.key !== filter.key), filter]
   })),
+  addFilters: (newFilters) => set((state) => ({
+    filters: [...state.filters, ...newFilters]
+  })),
   removeFilter: (key) => set((state) => ({
+    filters: state.filters.filter(f => f.key !== key)
+  })),
+  removeFiltersByKey: (key) => set((state) => ({
     filters: state.filters.filter(f => f.key !== key)
   })),
   clearFilters: () => set({ filters: [] }),

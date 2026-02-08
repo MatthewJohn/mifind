@@ -23,7 +23,7 @@ export function useEntity(id: string | null) {
 export function useFilters(searchQuery?: string) {
   return useQuery({
     queryKey: ['filters', searchQuery],
-    queryFn: () => searchApi.getFilters(),
+    queryFn: () => searchApi.getFilters(searchQuery),
     staleTime: 1000 * 60 * 5,
   })
 }

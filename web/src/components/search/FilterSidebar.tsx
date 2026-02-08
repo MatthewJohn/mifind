@@ -1,7 +1,9 @@
 import { useSearchStore } from '@/stores/searchStore'
 import { useFilters } from '@/hooks/useSearch'
-import { Filter } from 'lucide-react'
+import { Filter, HardDrive, Folder, FileType } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { useState } from 'react'
+import type { SearchFilter } from '@/types/api'
 
 export function FilterSidebar() {
   const {
@@ -10,23 +12,80 @@ export function FilterSidebar() {
     selectedTypes,
     toggleType,
     filters,
+    addFilter,
+    addFilters,
     removeFilter,
+    removeFiltersByKey,
     clearFilters,
     query,
   } = useSearchStore()
 
   const { data: filterData, isLoading } = useFilters(query)
 
+  // Local state for filter inputs
+  const [pathFilter, setPathFilter] = useState('')
+
   if (!isFilterOpen) {
     return (
       <button
         onClick={() => setFilterOpen(true)}
         className="fixed left-4 top-1/2 -translate-y-1/2 z-30 bg-white p-2 rounded-lg shadow-lg border border-gray-200 hover:bg-gray-50"
+        title="Open filters"
       >
         <Filter className="h-5 w-5 text-gray-600" />
       </button>
     )
   }
+
+  // Size presets in user-friendly format
+  const sizePresets = [
+    { label: '< 1 MB', min: 0, max: 1024 * 1024 },
+    { label: '1 MB - 10 MB', min: 1024 * 1024, max: 10 * 1024 * 1024 },
+    { label: '10 MB - 100 MB', min: 10 * 1024 * 1024, max: 100 * 1024 * 1024 },
+    { label: '> 100 MB', min: 100 * 1024 * 1024, max: null },
+  ]
+
+  const applyPathFilter = () => {
+    if (pathFilter.trim()) {
+      // Remove existing path filter if any, then add new one
+      removeFilter('path')
+      addFilter({ key: 'path', operator: 'contains', value: pathFilter })
+    }
+  }
+
+  const applyExtensionFilter = (extension: string) => {
+    if (extension) {
+      removeFilter('extension')
+      addFilter({ key: 'extension', operator: 'eq', value: extension })
+    } else {
+      removeFilter('extension')
+    }
+  }
+
+  const applySizePreset = (min: number | null, max: number | null) => {
+    // Remove all existing size filters
+    removeFiltersByKey('size')
+
+    // Add new size filters
+    const newFilters: SearchFilter[] = []
+    if (min !== null) {
+      newFilters.push({ key: 'size', operator: 'gte', value: min })
+    }
+    if (max !== null) {
+      newFilters.push({ key: 'size', operator: 'lte', value: max })
+    }
+
+    if (newFilters.length > 0) {
+      addFilters(newFilters)
+    }
+  }
+
+  const clearSizeFilters = () => {
+    removeFiltersByKey('size')
+  }
+
+  // Check if a filter is active
+  const hasFilter = (key: string) => filters.some(f => f.key === key)
 
   return (
     <div className="fixed left-0 top-0 h-full w-80 bg-white border-r border-gray-200 overflow-y-auto z-30 shadow-lg">
@@ -69,96 +128,172 @@ export function FilterSidebar() {
         )}
 
         {!isLoading && filterData && (
-          <>
-            {/* Type filter - use capabilities.type.Options if available, otherwise TypeCounts from search results */}
-            {(filterData.capabilities?.['type']?.Options || (filterData.filters?.TypeCounts && Object.keys(filterData.filters.TypeCounts).length > 0)) && (
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Type</h3>
+          <div className="space-y-6">
+            {/* Type filters */}
+            {(filterData.filters?.TypeCounts && Object.keys(filterData.filters.TypeCounts).length > 0) && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                  <FileType className="h-3 w-3" />
+                  Type
+                </h3>
                 <div className="space-y-1">
-                  {filterData.filters?.TypeCounts ? (
-                    // Show types with counts from search results
-                    Object.entries(filterData.filters.TypeCounts).map(([type, count]) => (
-                      <label key={type} className="flex items-center gap-2 cursor-pointer">
+                  {Object.entries(filterData.filters.TypeCounts)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([type, count]) => (
+                      <label key={type} className="flex items-center gap-2 cursor-pointer group">
                         <input
                           type="checkbox"
                           checked={selectedTypes.includes(type)}
                           onChange={() => toggleType(type)}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span className="text-sm text-gray-600">
-                          {type} ({count})
+                        <span className="text-sm text-gray-600 group-hover:text-gray-900">
+                          {type} <span className="text-gray-400">({count})</span>
                         </span>
                       </label>
-                    ))
-                  ) : (
-                    // Show predefined types from capabilities
-                    filterData.capabilities?.['type']?.Options?.map((opt: any) => (
-                      <label key={opt.Value} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedTypes.includes(opt.Value)}
-                          onChange={() => toggleType(opt.Value)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-600">
-                          {opt.Label || opt.Value}
-                        </span>
-                      </label>
-                    ))
-                  )}
+                    ))}
                 </div>
               </div>
             )}
 
-            {/* Attribute filters - show from capabilities */}
-            {filterData.capabilities && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Attributes</h3>
-                <div className="space-y-3">
+            {/* Path filter - always show for filesystem */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                <Folder className="h-3 w-3" />
+                Path
+              </h3>
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  value={pathFilter}
+                  onChange={(e) => setPathFilter(e.target.value)}
+                  placeholder="/home/user/Documents"
+                  className="flex-1 text-sm border border-gray-300 rounded px-2 py-1.5"
+                  onKeyPress={(e) => e.key === 'Enter' && applyPathFilter()}
+                />
+                <button
+                  onClick={applyPathFilter}
+                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Apply
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Filter by file path (supports wildcards)</p>
+            </div>
+
+            {/* Extension filter - common ones */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                <FileType className="h-3 w-3" />
+                Extension
+              </h3>
+              <select
+                onChange={(e) => applyExtensionFilter(e.target.value)}
+                className={`w-full text-sm border rounded px-2 py-1.5 ${hasFilter('extension') ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+              >
+                <option value="">All files</option>
+                <option value="pdf">PDF</option>
+                <option value="docx">Word document</option>
+                <option value="doc">Word document (old)</option>
+                <option value="xlsx">Excel spreadsheet</option>
+                <option value="xls">Excel (old)</option>
+                <option value="pptx">PowerPoint</option>
+                <option value="jpg">JPEG image</option>
+                <option value="jpeg">JPEG image (alt)</option>
+                <option value="png">PNG image</option>
+                <option value="gif">GIF image</option>
+                <option value="svg">SVG image</option>
+                <option value="webp">WebP image</option>
+                <option value="mp4">MP4 video</option>
+                <option value="mov">MOV video</option>
+                <option value="avi">AVI video</option>
+                <option value="mkv">MKV video</option>
+                <option value="mp3">MP3 audio</option>
+                <option value="wav">WAV audio</option>
+                <option value="flac">FLAC audio</option>
+                <option value="zip">ZIP archive</option>
+                <option value="tar">TAR archive</option>
+                <option value="gz">GZ archive</option>
+                <option value="rar">RAR archive</option>
+                <option value="7z">7-Zip archive</option>
+              </select>
+            </div>
+
+            {/* Size filter with presets */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <HardDrive className="h-3 w-3" />
+                  File Size
+                </span>
+                {hasFilter('size') && (
+                  <button
+                    onClick={clearSizeFilters}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    Clear
+                  </button>
+                )}
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {sizePresets.map((preset) => {
+                  const isActive = filters.some(f =>
+                    f.key === 'size' &&
+                    ((f.operator === 'gte' && f.value === preset.min) ||
+                     (f.operator === 'lte' && f.value === preset.max))
+                  )
+                  return (
+                    <button
+                      key={preset.label}
+                      onClick={() => isActive ? clearSizeFilters() : applySizePreset(preset.min, preset.max)}
+                      className={`text-xs border rounded px-2 py-1 text-left ${
+                        isActive
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Show more capabilities if available */}
+            {filterData.capabilities && Object.keys(filterData.capabilities).length > 4 && (
+              <details className="group">
+                <summary className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900">
+                  More filters ▼
+                </summary>
+                <div className="mt-3 space-y-3 pl-2 border-l-2 border-gray-200">
                   {Object.entries(filterData.capabilities)
-                    .filter(([key]) => key !== 'type') // Skip type, already shown above
-                    .slice(0, 8)
+                    .filter(([key]) => !['type', 'path', 'extension', 'size'].includes(key))
+                    .slice(0, 5)
                     .map(([key, cap]: [string, any]) => (
                       <div key={key}>
                         <h4 className="text-xs font-medium text-gray-500 mb-1">{cap.Description || key}</h4>
                         {cap.Options ? (
-                          // Predefined options
-                          <select className="w-full text-sm border border-gray-300 rounded px-2 py-1">
+                          <select className="w-full text-xs border border-gray-300 rounded px-2 py-1">
                             <option value="">All</option>
                             {cap.Options.map((opt: any) => (
                               <option key={opt.Value} value={opt.Value}>
-                                {opt.Label || opt.Value} {opt.Count > 0 && `(${opt.Count})`}
+                                {opt.Label || opt.Value}
                               </option>
                             ))}
                           </select>
-                        ) : cap.Type === 'string' || cap.Type === 'time' ? (
-                          // Text input for strings and time
-                          <input
-                            type="text"
-                            placeholder={`Filter by ${key}`}
-                            className="w-full text-sm border border-gray-300 rounded px-2 py-1"
-                          />
-                        ) : cap.Type === 'int64' || cap.Type === 'int' ? (
-                          // Number input
-                          <input
-                            type="number"
-                            placeholder={`Filter by ${key}`}
-                            className="w-full text-sm border border-gray-300 rounded px-2 py-1"
-                          />
                         ) : (
-                          // Default text input
                           <input
                             type="text"
                             placeholder={`Filter by ${key}`}
-                            className="w-full text-sm border border-gray-300 rounded px-2 py-1"
+                            className="w-full text-xs border border-gray-300 rounded px-2 py-1"
                           />
                         )}
                       </div>
                     ))}
                 </div>
-              </div>
+              </details>
             )}
-          </>
+          </div>
         )}
 
         {isLoading && (
