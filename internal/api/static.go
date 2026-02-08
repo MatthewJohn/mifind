@@ -10,15 +10,10 @@ import (
 var webFS embed.FS
 
 // WebFS returns the embedded web UI filesystem.
+// It strips the "web" prefix so files are served from root.
 func WebFS() http.FileSystem {
-	return http.FS(webFS)
-}
-
-// emptyFS is a minimal filesystem that returns file not found for all operations.
-type emptyFS struct{}
-
-func (e *emptyFS) Open(name string) (fs.File, error) {
-	return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
+	fsys, _ := fs.Sub(webFS, "web")
+	return http.FS(fsys)
 }
 
 // spaFileSystem wraps http.FileSystem to handle SPA routing.
@@ -29,19 +24,27 @@ type spaFileSystem struct {
 
 // Open opens the named file. If the file doesn't exist, it serves index.html.
 func (fs spaFileSystem) Open(name string) (http.File, error) {
+	// Try opening the requested file first
 	f, err := fs.FileSystem.Open(name)
 	if err != nil {
-		// File doesn't exist, try index.html for SPA routing
-		return fs.FileSystem.Open("/index.html")
+		// File doesn't exist, serve index.html for SPA routing
+		// Use relative path without leading slash
+		return fs.FileSystem.Open("index.html")
 	}
 
 	// If it's a directory, try to serve index.html inside it
 	stat, _ := f.Stat()
 	if stat.IsDir() {
+		// Remove trailing slash for consistency
+		if name == "/" {
+			return fs.FileSystem.Open("index.html")
+		}
 		index, err := fs.FileSystem.Open(name + "/index.html")
 		if err == nil {
 			return index, nil
 		}
+		// If no index.html in subdir, return the directory listing (403)
+		return f, nil
 	}
 
 	return f, nil
