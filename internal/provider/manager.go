@@ -20,11 +20,11 @@ type Manager struct {
 
 // ProviderInstance represents an active provider instance with its state.
 type ProviderInstance struct {
-	Provider        Provider
-	Config          map[string]any
-	Status          ProviderStatus
-	lastDiscovery   time.Time
-	discoveryMutex  sync.Mutex
+	Provider       Provider
+	Config         map[string]any
+	Status         ProviderStatus
+	lastDiscovery  time.Time
+	discoveryMutex sync.Mutex
 }
 
 // NewManager creates a new provider manager.

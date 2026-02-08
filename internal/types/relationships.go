@@ -4,24 +4,24 @@ package types
 // for common connections between entities.
 const (
 	// General containment relationships
-	RelParent   = "parent"   // Parent entity (e.g., folder containing file)
-	RelChild    = "child"    // Child entity (inverse of parent)
-	RelSibling  = "sibling"  // Sibling entity (same parent)
+	RelParent  = "parent"  // Parent entity (e.g., folder containing file)
+	RelChild   = "child"   // Child entity (inverse of parent)
+	RelSibling = "sibling" // Sibling entity (same parent)
 
 	// Collection membership
-	RelCollection  = "collection"  // Member of a collection
-	RelAlbum       = "album"       // Member of an album
-	RelFolder      = "folder"      // Contained in folder
-	RelPlaylist    = "playlist"    // Member of a playlist
+	RelCollection = "collection" // Member of a collection
+	RelAlbum      = "album"      // Member of an album
+	RelFolder     = "folder"     // Contained in folder
+	RelPlaylist   = "playlist"   // Member of a playlist
 
 	// Media/creative relationships
-	RelArtist      = "artist"      // Created by artist
-	RelAlbumOwner  = "album_owner" // Album owned by artist
-	RelTrack       = "track"       // Track on album
-	RelSeries      = "series"      // Part of a series
-	RelSeason      = "season"      // Part of a season (TV)
-	RelEpisode     = "episode"     // Episode in a season
-	RelMovie       = "movie"       // Movie in a collection
+	RelArtist     = "artist"      // Created by artist
+	RelAlbumOwner = "album_owner" // Album owned by artist
+	RelTrack      = "track"       // Track on album
+	RelSeries     = "series"      // Part of a series
+	RelSeason     = "season"      // Part of a season (TV)
+	RelEpisode    = "episode"     // Episode in a season
+	RelMovie      = "movie"       // Movie in a collection
 
 	// File/media representation relationships
 	RelOriginalFile = "original_file" // Original file
@@ -30,11 +30,11 @@ const (
 	RelTranscode    = "transcode"     // Transcoded version
 
 	// Version control relationships
-	RelRepository  = "repository" // Belongs to repository
-	RelBranch      = "branch"     // On branch
-	RelCommit      = "commit"     // Related commit
+	RelRepository   = "repository"    // Belongs to repository
+	RelBranch       = "branch"        // On branch
+	RelCommit       = "commit"        // Related commit
 	RelParentCommit = "parent_commit" // Parent commit
-	RelDiff        = "diff"       // Diff between versions
+	RelDiff         = "diff"          // Diff between versions
 
 	// Social/people relationships
 	RelOwner       = "owner"       // Owned by
@@ -46,14 +46,14 @@ const (
 	RelFollowing   = "following"   // Following
 
 	// Tag/categorization relationships
-	RelTag     = "tag"      // Has tag
+	RelTag      = "tag"      // Has tag
 	RelCategory = "category" // In category
-	RelTopic   = "topic"    // About topic
+	RelTopic    = "topic"    // About topic
 
 	// Location relationships
-	RelLocation  = "location"  // At location
-	RelPlace     = "place"     // At place
-	RelVenue     = "venue"     // At venue
+	RelLocation    = "location"     // At location
+	RelPlace       = "place"        // At place
+	RelVenue       = "venue"        // At venue
 	RelContainedIn = "contained_in" // Contained in larger place
 
 	// Temporal relationships
@@ -62,23 +62,23 @@ const (
 	RelOverlaps = "overlaps" // Overlaps in time
 
 	// Reference/link relationships
-	RelReferences  = "references"  // References another entity
+	RelReferences   = "references"    // References another entity
 	RelReferencedBy = "referenced_by" // Referenced by another entity
-	RelRelatedTo   = "related_to"  // Generally related
-	RelSimilarTo   = "similar_to"  // Similar to another entity
-	RelDuplicateOf = "duplicate_of" // Duplicate of another entity
+	RelRelatedTo    = "related_to"    // Generally related
+	RelSimilarTo    = "similar_to"    // Similar to another entity
+	RelDuplicateOf  = "duplicate_of"  // Duplicate of another entity
 
 	// Dependency relationships
-	RelDependsOn    = "depends_on"     // Depends on another entity
-	RelRequiredBy   = "required_by"    // Required by another entity
-	RelDerivedFrom  = "derived_from"   // Derived from another entity
-	RelReplaces     = "replaces"       // Replaces another entity
-	RelReplacedBy   = "replaced_by"    // Replaced by another entity
+	RelDependsOn   = "depends_on"   // Depends on another entity
+	RelRequiredBy  = "required_by"  // Required by another entity
+	RelDerivedFrom = "derived_from" // Derived from another entity
+	RelReplaces    = "replaces"     // Replaces another entity
+	RelReplacedBy  = "replaced_by"  // Replaced by another entity
 
 	// Face/person detection relationships (Immich, etc.)
-	RelPerson   = "person"   // Person detected in media
-	RelFace     = "face"     // Face region in media
-	RelInMedia  = "in_media" // Person appears in media
+	RelPerson  = "person"   // Person detected in media
+	RelFace    = "face"     // Face region in media
+	RelInMedia = "in_media" // Person appears in media
 )
 
 // RelationshipDirection indicates the direction of a relationship.
@@ -194,19 +194,19 @@ func IsBidirectional(relType string) bool {
 // Returns empty string if no standard inverse exists.
 func GetInverseRelationship(relType string) string {
 	inverses := map[string]string{
-		RelParent:      RelChild,
-		RelChild:       RelParent,
-		RelReferences:  RelReferencedBy,
+		RelParent:       RelChild,
+		RelChild:        RelParent,
+		RelReferences:   RelReferencedBy,
 		RelReferencedBy: RelReferences,
-		RelDependsOn:   RelRequiredBy,
-		RelRequiredBy:  RelDependsOn,
-		RelDerivedFrom: RelReplaces,
-		RelReplaces:    RelReplacedBy,
-		RelReplacedBy:  RelReplaces,
-		RelBefore:      RelAfter,
-		RelAfter:       RelBefore,
-		RelInMedia:     RelPerson,
-		RelPerson:      RelInMedia,
+		RelDependsOn:    RelRequiredBy,
+		RelRequiredBy:   RelDependsOn,
+		RelDerivedFrom:  RelReplaces,
+		RelReplaces:     RelReplacedBy,
+		RelReplacedBy:   RelReplaces,
+		RelBefore:       RelAfter,
+		RelAfter:        RelBefore,
+		RelInMedia:      RelPerson,
+		RelPerson:       RelInMedia,
 	}
 	return inverses[relType]
 }

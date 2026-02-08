@@ -170,12 +170,12 @@ type ProviderConfig struct {
 // NewProviderConfig creates a default provider config.
 func NewProviderConfig() *ProviderConfig {
 	return &ProviderConfig{
-		Timeout:         30 * time.Second,
-		RetryCount:      3,
-		RateLimit:       0,
-		EnableCaching:   true,
-		CacheTTL:        5 * time.Minute,
-		Custom:          make(map[string]any),
+		Timeout:       30 * time.Second,
+		RetryCount:    3,
+		RateLimit:     0,
+		EnableCaching: true,
+		CacheTTL:      5 * time.Minute,
+		Custom:        make(map[string]any),
 	}
 }
 
@@ -335,13 +335,13 @@ var (
 type ErrorType string
 
 const (
-	ErrorTypeConfig     ErrorType = "config"
-	ErrorTypeAuth       ErrorType = "auth"
-	ErrorTypeNotFound   ErrorType = "not_found"
+	ErrorTypeConfig       ErrorType = "config"
+	ErrorTypeAuth         ErrorType = "auth"
+	ErrorTypeNotFound     ErrorType = "not_found"
 	ErrorTypeNotSupported ErrorType = "not_supported"
-	ErrorTypeRateLimit  ErrorType = "rate_limit"
-	ErrorTypeTemporary  ErrorType = "temporary"
-	ErrorTypeUnknown    ErrorType = "unknown"
+	ErrorTypeRateLimit    ErrorType = "rate_limit"
+	ErrorTypeTemporary    ErrorType = "temporary"
+	ErrorTypeUnknown      ErrorType = "unknown"
 )
 
 // ProviderError represents an error from a provider.

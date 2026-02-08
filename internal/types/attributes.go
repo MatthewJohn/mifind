@@ -11,58 +11,58 @@ const (
 	AttrDescription = "description"
 
 	// File/path attributes
-	AttrPath     = "path"           // File system path or similar
-	AttrSize     = "size"           // Size in bytes
-	AttrExtension = "extension"     // File extension
-	AttrMimeType = "mime_type"      // MIME type
-	AttrModified = "modified"       // Last modification timestamp
-	AttrCreated  = "created"        // Creation timestamp
+	AttrPath      = "path"      // File system path or similar
+	AttrSize      = "size"      // Size in bytes
+	AttrExtension = "extension" // File extension
+	AttrMimeType  = "mime_type" // MIME type
+	AttrModified  = "modified"  // Last modification timestamp
+	AttrCreated   = "created"   // Creation timestamp
 
 	// Media attributes
-	AttrDuration   = "duration"     // Duration in seconds
-	AttrWidth      = "width"        // Image/video width in pixels
-	AttrHeight     = "height"       // Image/video height in pixels
-	AttrCamera     = "camera"       // Camera make/model
-	AttrLens       = "lens"         // Lens model
-	AttrISO        = "iso"          // ISO setting
-	AttrAperture   = "aperture"     // Aperture f-number
-	AttrShutterSpeed = "shutter"    // Shutter speed
+	AttrDuration     = "duration" // Duration in seconds
+	AttrWidth        = "width"    // Image/video width in pixels
+	AttrHeight       = "height"   // Image/video height in pixels
+	AttrCamera       = "camera"   // Camera make/model
+	AttrLens         = "lens"     // Lens model
+	AttrISO          = "iso"      // ISO setting
+	AttrAperture     = "aperture" // Aperture f-number
+	AttrShutterSpeed = "shutter"  // Shutter speed
 
 	// GPS/location attributes
-	AttrGPS       = "gps"           // GPS coordinates (lat, lng)
-	AttrLatitude  = "latitude"      // Latitude coordinate
-	AttrLongitude = "longitude"     // Longitude coordinate
-	AttrLocation  = "location"      // Human-readable location name
+	AttrGPS       = "gps"       // GPS coordinates (lat, lng)
+	AttrLatitude  = "latitude"  // Latitude coordinate
+	AttrLongitude = "longitude" // Longitude coordinate
+	AttrLocation  = "location"  // Human-readable location name
 
 	// Media library attributes
-	AttrAlbum      = "album"        // Album name
-	AttrArtist     = "artist"       // Artist name
-	AttrGenre      = "genre"        // Genre/category
-	AttrYear       = "year"         // Release year
-	AttrTrack      = "track"        // Track number
+	AttrAlbum  = "album"  // Album name
+	AttrArtist = "artist" // Artist name
+	AttrGenre  = "genre"  // Genre/category
+	AttrYear   = "year"   // Release year
+	AttrTrack  = "track"  // Track number
 
 	// Version control attributes
-	AttrRepository = "repository"   // Repository name
-	AttrBranch     = "branch"       // Branch name
-	AttrCommit     = "commit"       // Commit hash
-	AttrAuthor     = "author"       // Author name
-	AttrFilePath   = "file_path"    // Path in repository
+	AttrRepository = "repository" // Repository name
+	AttrBranch     = "branch"     // Branch name
+	AttrCommit     = "commit"     // Commit hash
+	AttrAuthor     = "author"     // Author name
+	AttrFilePath   = "file_path"  // Path in repository
 
 	// Task/issue attributes
-	AttrStatus    = "status"       // Status (open, closed, etc.)
-	AttrPriority  = "priority"     // Priority level
-	AttrAssignee  = "assignee"     // Assigned user
-	AttrLabels    = "labels"       // Labels/tags ([]string)
-	AttrDueDate   = "due_date"     // Due date
+	AttrStatus   = "status"   // Status (open, closed, etc.)
+	AttrPriority = "priority" // Priority level
+	AttrAssignee = "assignee" // Assigned user
+	AttrLabels   = "labels"   // Labels/tags ([]string)
+	AttrDueDate  = "due_date" // Due date
 
 	// Face/person attributes (Immich, etc.)
-	AttrFaces     = "faces"        // Number of faces detected
-	AttrPeople    = "people"       // List of people IDs/names
+	AttrFaces       = "faces"        // Number of faces detected
+	AttrPeople      = "people"       // List of people IDs/names
 	AttrFaceRegions = "face_regions" // Face detection regions
 
 	// Smart search/ML attributes
-	AttrSmartInfo = "smart_info"   // ML-generated tags/info
-	AttrScore     = "score"        // Relevance/confidence score
+	AttrSmartInfo = "smart_info" // ML-generated tags/info
+	AttrScore     = "score"      // Relevance/confidence score
 )
 
 // GPS represents a geographic coordinate.

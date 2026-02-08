@@ -8,8 +8,8 @@ import (
 
 // TypeRegistry manages the hierarchical type system for entities.
 type TypeRegistry struct {
-	mu     sync.RWMutex
-	types  map[string]*TypeDefinition
+	mu    sync.RWMutex
+	types map[string]*TypeDefinition
 }
 
 // TypeDefinition defines a type in the hierarchy with its attributes and filters.
@@ -52,15 +52,15 @@ type AttributeDef struct {
 type AttributeType string
 
 const (
-	AttributeTypeString   AttributeType = "string"
-	AttributeTypeInt      AttributeType = "int"
-	AttributeTypeInt64    AttributeType = "int64"
-	AttributeTypeFloat    AttributeType = "float"
-	AttributeTypeFloat64  AttributeType = "float64"
-	AttributeTypeBool     AttributeType = "bool"
-	AttributeTypeTime     AttributeType = "time"
+	AttributeTypeString      AttributeType = "string"
+	AttributeTypeInt         AttributeType = "int"
+	AttributeTypeInt64       AttributeType = "int64"
+	AttributeTypeFloat       AttributeType = "float"
+	AttributeTypeFloat64     AttributeType = "float64"
+	AttributeTypeBool        AttributeType = "bool"
+	AttributeTypeTime        AttributeType = "time"
 	AttributeTypeStringSlice AttributeType = "[]string"
-	AttributeTypeGPS      AttributeType = "gps" // Special type for coordinates
+	AttributeTypeGPS         AttributeType = "gps" // Special type for coordinates
 )
 
 // FilterDefinition defines a filter that can be applied to a type.
