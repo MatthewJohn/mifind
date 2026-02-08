@@ -20,6 +20,7 @@ import (
 	"github.com/yourname/mifind/internal/search"
 	"github.com/yourname/mifind/internal/types"
 	"github.com/yourname/mifind/pkg/provider/filesystem"
+	"github.com/yourname/mifind/pkg/provider/immich"
 )
 
 func main() {
@@ -64,6 +65,15 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to register filesystem provider")
 	}
 
+	// Register Immich provider
+	if err := providerRegistry.Register(provider.ProviderMetadata{
+		Name:        "immich",
+		Description: "Immich photo and video server",
+		Factory:     func() provider.Provider { return immich.NewProvider() },
+	}); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to register Immich provider")
+	}
+
 	// Initialize provider manager
 	providerManager := provider.NewManager(providerRegistry, &logger)
 
@@ -93,6 +103,21 @@ func main() {
 			logger.Warn().Err(err).Str("instance", fsConfig.InstanceID).Msg("Failed to initialize filesystem provider")
 		} else {
 			logger.Info().Str("instance", fsConfig.InstanceID).Str("url", fsConfig.URL).Msg("Filesystem provider initialized")
+		}
+	}
+
+	// Initialize Immich providers
+	for _, immichConfig := range config.ImmichProviders {
+		providerConfig := map[string]any{
+			"instance_id":           immichConfig.InstanceID,
+			"url":                  immichConfig.URL,
+			"api_key":              immichConfig.APIKey,
+			"insecure_skip_verify": immichConfig.InsecureSkipVerify,
+		}
+		if err := providerManager.Initialize(context.Background(), "immich", providerConfig); err != nil {
+			logger.Warn().Err(err).Str("instance", immichConfig.InstanceID).Msg("Failed to initialize Immich provider")
+		} else {
+			logger.Info().Str("instance", immichConfig.InstanceID).Str("url", immichConfig.URL).Msg("Immich provider initialized")
 		}
 	}
 
@@ -158,6 +183,7 @@ type Config struct {
 	MockEnabled         bool                       `mapstructure:"mock_enabled"`
 	MockEntityCount     int                        `mapstructure:"mock_entity_count"`
 	FilesystemProviders []FilesystemProviderConfig `mapstructure:"filesystem_providers"`
+	ImmichProviders     []ImmichProviderConfig     `mapstructure:"immich_providers"`
 }
 
 // FilesystemProviderConfig holds configuration for a filesystem provider instance.
@@ -165,6 +191,14 @@ type FilesystemProviderConfig struct {
 	InstanceID string `mapstructure:"instance_id"`
 	URL        string `mapstructure:"url"`
 	APIKey     string `mapstructure:"api_key"`
+}
+
+// ImmichProviderConfig holds configuration for an Immich provider instance.
+type ImmichProviderConfig struct {
+	InstanceID         string `mapstructure:"instance_id"`
+	URL                string `mapstructure:"url"`
+	APIKey             string `mapstructure:"api_key"`
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"`
 }
 
 // loadConfig loads configuration from file and environment.

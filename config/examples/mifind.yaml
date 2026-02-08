@@ -19,3 +19,15 @@ mock:
 #   - instance_id: "media"
 #     url: "http://localhost:8083"
 #     api_key: ""
+
+# Immich providers (commented out - enable as needed)
+# Each instance connects to an Immich server
+# immich_providers:
+#   - instance_id: "photos"
+#     url: "https://immich.example.com"
+#     api_key: "your-api-key-here"
+#     insecure_skip_verify: false
+#   - instance_id: "family-photos"
+#     url: "https://photos.family.com"
+#     api_key: "another-api-key"
+#     insecure_skip_verify: true
