@@ -11,7 +11,7 @@ ui:
 
 # Mock provider for testing
 mock_enabled: true
-mock_entity_count: 10
+mock_entity_count: 100
 
 # Filesystem providers (commented out - enable as needed)
 # Each instance connects to a filesystem-api service

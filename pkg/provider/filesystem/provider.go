@@ -213,10 +213,17 @@ func (p *Provider) GetRelated(ctx context.Context, id string, relType string) ([
 // Search performs a search query on the filesystem.
 func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]types.Entity, error) {
 	// Build search request
+	// Use a high limit when API-level pagination is desired (Limit <= 0)
+	// This ensures we get all results for proper pagination
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 10000 // Use a high limit to get all results for pagination
+	}
+
 	searchReq := SearchRequest{
 		Query:   query.Query,
 		Filters: make(map[string]any),
-		Limit:   query.Limit,
+		Limit:   limit,
 		Offset:  query.Offset,
 	}
 
