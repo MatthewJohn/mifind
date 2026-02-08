@@ -220,16 +220,17 @@ func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]ty
 		Offset:  query.Offset,
 	}
 
-	// Add filters
+	// Add filters (but not type - that's handled internally)
 	for k, v := range query.Filters {
-		searchReq.Filters[k] = v
+		// Skip type filter as it's not filterable in Meilisearch
+		// Type filtering will be handled on results after search
+		if k != "type" {
+			searchReq.Filters[k] = v
+		}
 	}
 
-	// Add type filter
-	if query.Type != "" {
-		// Convert mifind type to file extension filter
-		searchReq.Filters["type"] = query.Type
-	}
+	// Note: query.Type is also excluded from Meilisearch filters
+	// Type filtering is handled internally after getting results
 
 	// Execute search
 	result, err := p.client.Search(ctx, searchReq)
@@ -238,9 +239,23 @@ func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]ty
 	}
 
 	// Convert files to entities
-	entities := make([]types.Entity, len(result.Files))
-	for i, file := range result.Files {
-		entities[i] = p.fileToEntity(file)
+	entities := make([]types.Entity, 0, len(result.Files))
+	for _, file := range result.Files {
+		entity := p.fileToEntity(file)
+
+		// Apply type filtering (handled internally since Meilisearch doesn't support it)
+		typeFilter := query.Type
+		if typeFilter == "" {
+			// Also check filters map for type
+			if v, ok := query.Filters["type"]; ok {
+				typeFilter = v.(string)
+			}
+		}
+
+		// Include entity if no type filter or if it matches
+		if typeFilter == "" || typeMatches(entity.Type, typeFilter) {
+			entities = append(entities, entity)
+		}
 	}
 
 	return entities, nil
@@ -370,4 +385,19 @@ func (p *Provider) fileToEntity(file File) types.Entity {
 	}
 
 	return entity
+}
+
+// typeMatches checks if an entity type matches a filter type.
+// It supports exact match and prefix matching (e.g., "file" matches "file.media.image").
+func typeMatches(entityType, filterType string) bool {
+	if entityType == filterType {
+		return true
+	}
+	// Prefix match: if filter is "file", it matches "file.media.image"
+	if strings.HasPrefix(entityType, filterType+".") {
+		return true
+	}
+	// Also check if filter is a parent type by checking if entity type starts with filter
+	// This handles cases like filtering by "file" to get all file subtypes
+	return strings.HasPrefix(entityType, filterType+".")
 }
