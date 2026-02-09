@@ -90,11 +90,19 @@ func (p *Parser) ParseFilters(filterData map[string]any) (map[string]FilterValue
 // parseFilterSpec parses a single filter specification into a FilterValue.
 // The filter specification can be in several formats:
 //
-// 1. Simple operation: {"eq": "value"} -> StringFilter
-// 2. Range: {"gte": 100, "lte": 1000} -> IntFilter (will be combined by caller)
-// 3. Min/max range: {"min": 100, "max": 1000} -> RangeFilter
-// 4. Array membership: {"in": ["a", "b"]} -> StringSliceFilter
+// 1. Simple value (string, number, bool): treated as implicit "eq" operation
+//    "value" -> StringFilter with eq
+// 2. Simple operation: {"eq": "value"} -> StringFilter
+// 3. Range: {"gte": 100, "lte": 1000} -> IntFilter (will be combined by caller)
+// 4. Min/max range: {"min": 100, "max": 1000} -> RangeFilter
+// 5. Array membership: {"in": ["a", "b"]} -> StringSliceFilter
 func (p *Parser) parseFilterSpec(attrName string, filterSpec any, attrDef types.AttributeDef) (FilterValue, error) {
+	// Handle simple (non-object) values as implicit "eq" operations
+	if _, isMap := filterSpec.(map[string]any); !isMap {
+		// Simple value - treat as implicit equality filter
+		return p.parseOperationFilter(attrName, OpEq, filterSpec, attrDef)
+	}
+
 	// Convert to map if it's JSON
 	specMap, ok := filterSpec.(map[string]any)
 	if !ok {
@@ -271,7 +279,13 @@ func (p *Parser) parseOperationFilter(attrName string, op FilterOperation, value
 }
 
 // parseInFilter parses an "in" filter (array membership).
+// Handles both array values and single string values (which are converted to single-element arrays).
 func (p *Parser) parseInFilter(attrName string, value any, attrDef types.AttributeDef) (FilterValue, error) {
+	// Handle single string value by converting to single-element array
+	if strVal, ok := value.(string); ok {
+		return NewStringSliceFilter(OpIn, []string{strVal}), nil
+	}
+
 	sliceVal, err := parseStringSlice(attrName, value)
 	if err != nil {
 		return nil, err
