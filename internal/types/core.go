@@ -238,6 +238,7 @@ var CoreAttributes = map[string]AttributeDef{
 	AttrLocationCity:    AttrDefLocationCity,
 	AttrCamera:          AttrDefCamera,
 	AttrAlbum:           AttrDefAlbum,
+	AttrPerson:          AttrDefPerson,
 	AttrArtist:          AttrDefArtist,
 	AttrLabels:          AttrDefLabels,
 	AttrStatus:          AttrDefStatus,

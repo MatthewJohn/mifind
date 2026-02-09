@@ -268,14 +268,20 @@ func (r *TypeRegistry) GetAll() map[string]*TypeDefinition {
 	return result
 }
 
-// GetAllAttributes returns all attribute definitions from all registered types.
+// GetAllAttributes returns all attribute definitions from all registered types,
+// plus the core attributes defined in CoreAttributes.
 // This is useful for building generic filter capabilities without hardcoded attribute names.
 func (r *TypeRegistry) GetAllAttributes() map[string]AttributeDef {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	// Collect all unique attributes from all types
+	// Start with core attributes (which include standard definitions)
 	attrs := make(map[string]AttributeDef)
+	for name, attrDef := range CoreAttributes {
+		attrs[name] = attrDef
+	}
+
+	// Add/override with attributes from all registered types
 	for _, typeDef := range r.types {
 		for name, attr := range typeDef.Attributes {
 			attrs[name] = attr
