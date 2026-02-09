@@ -74,7 +74,17 @@ func (r *MeilisearchRanker) Rank(ctx context.Context, entities []EntityWithProvi
 	searchReq := r.buildSearchRequestWithIDs(query, filteredEntities)
 
 	// Step 4: Execute search
-	searchResp, err := r.client.Search(query.Query, searchReq)
+	// When provider-level filters are active (person, album, location), use wildcard search
+	// to match all entities since providers have already done the filtering
+	searchQuery := query.Query
+	if r.hasProviderLevelFilters(query.Filters) {
+		// Use wildcard to match all when provider filters are active
+		// Providers have already filtered by person/album/location, so we should return all results
+		searchQuery = "*"
+		r.logger.Debug().Msg("Provider-level filters active, using wildcard search")
+	}
+
+	searchResp, err := r.client.Search(searchQuery, searchReq)
 	if err != nil {
 		r.logger.Warn().Err(err).Msg("Meilisearch search failed, falling back to basic scoring")
 		return r.fallbackRanking(filteredEntities, query), nil
@@ -100,12 +110,27 @@ func (r *MeilisearchRanker) indexEntities(ctx context.Context, entities []Entity
 		return nil
 	}
 
+	r.logger.Debug().
+		Int("count", len(entities)).
+		Strs("sample_ids", getSampleIDs(entities, 3)).
+		Msg("Indexing entities into Meilisearch")
+
 	documents := make([]map[string]any, len(entities))
 	for i, entity := range entities {
 		documents[i] = r.entityToDocument(entity)
 	}
 
-	return r.client.UpdateDocuments(documents)
+	err := r.client.UpdateDocuments(documents)
+	if err != nil {
+		r.logger.Error().Err(err).Msg("Failed to update documents in Meilisearch")
+		return err
+	}
+
+	r.logger.Debug().
+		Int("count", len(documents)).
+		Msg("Successfully indexed entities into Meilisearch")
+
+	return nil
 }
 
 // entityToDocument converts an EntityWithProvider to a Meilisearch document.
@@ -228,6 +253,13 @@ func (r *MeilisearchRanker) buildSearchRequestWithIDs(query SearchQuery, entitie
 		if len(idFilters) > 0 {
 			filterParts = append(filterParts, "("+strings.Join(idFilters, " OR ")+")")
 		}
+
+		// Log the ID filter for debugging
+		r.logger.Debug().
+			Int("num_entities", len(entities)).
+			Int("num_id_filters", len(idFilters)).
+			Strs("sample_ids", getSampleIDs(entities, 5)).
+			Msg("Built entity ID filter for Meilisearch")
 	}
 
 	// Type filter (always available)
@@ -244,9 +276,29 @@ func (r *MeilisearchRanker) buildSearchRequestWithIDs(query SearchQuery, entitie
 
 	if len(filterParts) > 0 {
 		req.Filter = strings.Join(filterParts, " AND ")
+
+		r.logger.Debug().
+			Str("filter", req.Filter.(string)).
+			Msg("Meilisearch search request filter")
 	}
 
 	return req
+}
+
+// getSampleIDs returns a sample of entity IDs for logging.
+func getSampleIDs(entities []EntityWithProvider, count int) []string {
+	if len(entities) == 0 {
+		return []string{}
+	}
+	sampleSize := count
+	if len(entities) < sampleSize {
+		sampleSize = len(entities)
+	}
+	ids := make([]string, sampleSize)
+	for i := 0; i < sampleSize; i++ {
+		ids[i] = entities[i].Entity.ID
+	}
+	return ids
 }
 
 // transformEntityID converts an entity ID to Meilisearch-compatible format.
@@ -293,6 +345,9 @@ func (r *MeilisearchRanker) buildFilterPart(key string, value any) string {
 }
 
 // convertSearchResults converts Meilisearch search results to RankedEntity.
+// IMPORTANT: Ranking should NEVER filter - if Meilisearch doesn't return an entity,
+// it should still be included at the bottom of the ranking (with low score).
+// This ensures all entities from providers are always returned.
 func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchResponse, entities []EntityWithProvider, query SearchQuery) []RankedEntity {
 	// Create a map of entity ID to EntityWithProvider for quick lookup
 	entityMap := make(map[string]EntityWithProvider)
@@ -300,11 +355,15 @@ func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchRespons
 		entityMap[entity.Entity.ID] = entity
 	}
 
-	ranked := make([]RankedEntity, 0, len(resp.Hits))
+	// Track which entities were returned by Meilisearch
+	returnedIDs := make(map[string]bool)
+
+	ranked := make([]RankedEntity, 0, len(entities))
 
 	skippedMissingOriginalID := 0
 	skippedNotFoundInMap := 0
 
+	// Process Meilisearch hits in order (they come pre-ranked by relevance)
 	for _, hit := range resp.Hits {
 		hitMap, ok := hit.(map[string]any)
 		if !ok {
@@ -318,6 +377,8 @@ func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchRespons
 			r.logger.Debug().Str("hit", fmt.Sprintf("%v", hit)).Msg("Missing original_id field in Meilisearch hit")
 			continue
 		}
+
+		returnedIDs[originalID] = true
 
 		entity, ok := entityMap[originalID]
 		if !ok {
@@ -337,27 +398,87 @@ func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchRespons
 		})
 	}
 
+	// IMPORTANT: Re-add any entities that Meilisearch didn't return
+	// This ensures ranking NEVER filters - it only orders results
+	// Entities not returned by Meilisearch get a low score (near bottom)
+	meilisearchMissed := 0
+	baseScore := 1.0 / float64(len(ranked)+1) // Score just below the lowest Meilisearch result
+	for _, entity := range entities {
+		if !returnedIDs[entity.Entity.ID] {
+			meilisearchMissed++
+			// Add with a slightly lower score than the lowest ranked result
+			// Use a small decrement to maintain order while placing at bottom
+			fallbackScore := baseScore * 0.9
+			ranked = append(ranked, RankedEntity{
+				Entity:   entity.Entity,
+				Score:    fallbackScore,
+				Provider: entity.Provider,
+			})
+		}
+	}
+
 	r.logger.Debug().
 		Int("meilisearch_hits", len(resp.Hits)).
 		Int("converted_entities", len(ranked)).
 		Int("skipped_missing_original_id", skippedMissingOriginalID).
 		Int("skipped_not_found_in_map", skippedNotFoundInMap).
-		Msg("Converted Meilisearch results to RankedEntity")
+		Int("meilisearch_missed_readded", meilisearchMissed).
+		Msg("Converted Meilisearch results to RankedEntity (all entities preserved)")
 
 	return ranked
 }
 
+// hasProviderLevelFilters checks if the query contains provider-level filters
+// that are handled by providers (person, album, location).
+func (r *MeilisearchRanker) hasProviderLevelFilters(filters map[string]any) bool {
+	providerLevelFilters := map[string]bool{
+		"person":   true,
+		"album":    true,
+		"location": true,
+	}
+
+	for key := range filters {
+		if providerLevelFilters[key] {
+			return true
+		}
+	}
+	return false
+}
+
 // applyAttributeFilters applies custom attribute filters to entities in Go.
 // This is done before indexing so Meilisearch only sees relevant entities.
+// NOTE: Provider-level filters (person, album, location) are handled by providers
+// and should NOT be applied here since they don't exist as entity attributes.
 func (r *MeilisearchRanker) applyAttributeFilters(entities []EntityWithProvider, query SearchQuery) []EntityWithProvider {
 	if len(query.Filters) == 0 {
+		return entities
+	}
+
+	// Provider-level filters that are handled by providers, not entity attributes
+	// These should NOT be filtered at the entity level
+	providerLevelFilters := map[string]bool{
+		"person":    true,
+		"album":     true,
+		"location":  true,
+	}
+
+	// Build a new filters map excluding provider-level filters
+	entityFilters := make(map[string]any)
+	for key, val := range query.Filters {
+		if !providerLevelFilters[key] {
+			entityFilters[key] = val
+		}
+	}
+
+	// If no entity-level filters, return all entities
+	if len(entityFilters) == 0 {
 		return entities
 	}
 
 	filtered := make([]EntityWithProvider, 0, len(entities))
 
 	for _, entity := range entities {
-		if r.matchesFilters(entity.Entity, query.Filters) {
+		if r.matchesFilters(entity.Entity, entityFilters) {
 			filtered = append(filtered, entity)
 		}
 	}

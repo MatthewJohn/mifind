@@ -26,7 +26,7 @@ import (
 func main() {
 	// Setup logging
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
 	logger := log.With().Str("component", "main").Logger()
 
@@ -110,7 +110,7 @@ func main() {
 	// Initialize Immich providers
 	for _, immichConfig := range config.ImmichProviders {
 		providerConfig := map[string]any{
-			"instance_id":           immichConfig.InstanceID,
+			"instance_id":          immichConfig.InstanceID,
 			"url":                  immichConfig.URL,
 			"api_key":              immichConfig.APIKey,
 			"insecure_skip_verify": immichConfig.InsecureSkipVerify,

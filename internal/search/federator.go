@@ -186,6 +186,24 @@ func (f *Federator) searchProvider(ctx context.Context, providerName string, que
 		}
 	}
 
+	// If the provider doesn't support any of the query's filters, skip it entirely
+	// This prevents irrelevant results when filtering by provider-specific attributes
+	// Exception: always search if there's a text query and no filters are being applied
+	if len(query.Filters) > 0 && len(filteredFilters) == 0 {
+		f.logger.Debug().
+			Str("provider", providerName).
+			Str("query", query.Query).
+			Strs("unsupported_filters", getFilterKeys(query.Filters)).
+			Msg("Provider does not support any of the query filters, skipping provider")
+		return FederatedResult{
+			Provider:   providerName,
+			Entities:   []types.Entity{},
+			Error:      nil, // Not an error, just no results
+			Duration:   time.Since(start),
+			TypeCounts: map[string]int{},
+		}
+	}
+
 	// Create provider query with filtered filters
 	providerQuery := query.providerQuery()
 	providerQuery.Filters = filteredFilters
@@ -324,4 +342,13 @@ func (q SearchQuery) WithRelated(enabled bool, maxDepth int) SearchQuery {
 	q.IncludeRelated = enabled
 	q.MaxDepth = maxDepth
 	return q
+}
+
+// getFilterKeys returns the keys from a filters map for logging.
+func getFilterKeys(filters map[string]any) []string {
+	keys := make([]string, 0, len(filters))
+	for k := range filters {
+		keys = append(keys, k)
+	}
+	return keys
 }
