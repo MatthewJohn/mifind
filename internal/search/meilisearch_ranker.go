@@ -45,21 +45,12 @@ func (r *MeilisearchRanker) Name() string {
 }
 
 // Rank scores and orders entities using Meilisearch.
-// Custom attribute filters are applied BEFORE indexing, so Meilisearch
-// only sees relevant entities and can rank them properly.
+// Uses entity ID filtering to ensure only current search results are returned,
+// allowing concurrent searches without clearing the index.
 func (r *MeilisearchRanker) Rank(ctx context.Context, entities []EntityWithProvider, query SearchQuery) ([]RankedEntity, error) {
 	start := time.Now()
 
-	// Step 1: Clear the index to avoid results from previous searches
-	// This is necessary because the index grows unbounded with real-time indexing
-	if err := r.client.DeleteAll(); err != nil {
-		r.logger.Warn().Err(err).Msg("Failed to clear Meilisearch index, continuing anyway")
-	} else {
-		// Small delay to ensure deletion is processed before indexing new documents
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	// Step 2: Apply custom attribute filters in Go (before indexing)
+	// Step 1: Apply custom attribute filters in Go (before indexing)
 	filteredEntities := r.applyAttributeFilters(entities, query)
 
 	if len(filteredEntities) == 0 {
@@ -72,23 +63,24 @@ func (r *MeilisearchRanker) Rank(ctx context.Context, entities []EntityWithProvi
 		Int("filtered_entities", len(filteredEntities)).
 		Msg("Applied attribute filters before Meilisearch ranking")
 
-	// Step 3: Index only the filtered entities into Meilisearch
+	// Step 2: Index the filtered entities into Meilisearch (upsert, no clearing)
 	if err := r.indexEntities(ctx, filteredEntities); err != nil {
 		r.logger.Warn().Err(err).Msg("Failed to index entities, falling back to basic scoring")
 		return r.fallbackRanking(filteredEntities, query), nil
 	}
 
-	// Step 4: Build Meilisearch search request (only basic filters)
-	searchReq := r.buildSearchRequest(query)
+	// Step 3: Build Meilisearch search request with entity ID filter
+	// This ensures we only get results from the current search, not stale data
+	searchReq := r.buildSearchRequestWithIDs(query, filteredEntities)
 
-	// Step 5: Execute search
+	// Step 4: Execute search
 	searchResp, err := r.client.Search(query.Query, searchReq)
 	if err != nil {
 		r.logger.Warn().Err(err).Msg("Meilisearch search failed, falling back to basic scoring")
 		return r.fallbackRanking(filteredEntities, query), nil
 	}
 
-	// Step 6: Convert results back to RankedEntity
+	// Step 5: Convert results back to RankedEntity
 	ranked := r.convertSearchResults(searchResp, filteredEntities, query)
 
 	r.logger.Debug().

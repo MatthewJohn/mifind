@@ -117,7 +117,7 @@ func (c *Client) updateIndexSettings(ctx context.Context) error {
 	return nil
 }
 
-// UpdateDocuments upserts documents into the index.
+// UpdateDocuments upserts documents into the index and waits for completion.
 func (c *Client) UpdateDocuments(documents []map[string]any) error {
 	if len(documents) == 0 {
 		return nil
@@ -134,8 +134,13 @@ func (c *Client) UpdateDocuments(documents []map[string]any) error {
 		return fmt.Errorf("failed to update documents: %w", err)
 	}
 
-	// Don't wait for update to complete (async)
-	c.logger.Debug().Int("count", len(documents)).Int64("task", task.TaskUID).Msg("Queued document update in Meilisearch")
+	// Wait for the update task to complete before returning
+	_, err = c.waitForTask(task.TaskUID)
+	if err != nil {
+		return fmt.Errorf("failed to wait for document update: %w", err)
+	}
+
+	c.logger.Debug().Int("count", len(documents)).Int64("task", task.TaskUID).Msg("Document update completed in Meilisearch")
 	return nil
 }
 
@@ -168,14 +173,20 @@ func (c *Client) DeleteDocuments(ids []string) error {
 	return nil
 }
 
-// DeleteAll deletes all documents from the index.
+// DeleteAll deletes all documents from the index and waits for completion.
 func (c *Client) DeleteAll() error {
 	task, err := c.index.DeleteAllDocuments()
 	if err != nil {
 		return fmt.Errorf("failed to delete all documents: %w", err)
 	}
 
-	c.logger.Info().Int64("task", task.TaskUID).Msg("Queued delete all documents from Meilisearch")
+	// Wait for the delete task to complete before returning
+	_, err = c.waitForTask(task.TaskUID)
+	if err != nil {
+		return fmt.Errorf("failed to wait for delete all: %w", err)
+	}
+
+	c.logger.Info().Int64("task", task.TaskUID).Msg("Deleted all documents from Meilisearch")
 	return nil
 }
 
