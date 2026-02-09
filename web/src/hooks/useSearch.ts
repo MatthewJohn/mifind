@@ -6,7 +6,7 @@ export function useSearch(searchRequest: SearchRequest | null) {
   return useQuery({
     queryKey: ['search', searchRequest],
     queryFn: () => searchApi.search(searchRequest!),
-    enabled: !!searchRequest && searchRequest.query.length > 0,
+    enabled: !!searchRequest, // Allow empty queries
     staleTime: 1000 * 60 * 5,
   })
 }

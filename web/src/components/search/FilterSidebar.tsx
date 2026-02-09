@@ -2,7 +2,7 @@ import { useSearchStore } from '@/stores/searchStore'
 import { useFilters } from '@/hooks/useSearch'
 import { Filter, HardDrive, Folder, FileType } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { SearchFilter } from '@/types/api'
 
 export function FilterSidebar() {
@@ -17,20 +17,11 @@ export function FilterSidebar() {
     removeFilter,
     removeFiltersByKey,
     clearFilters,
-    searchTriggered,
-    resetSearchTrigger,
   } = useSearchStore()
 
-  // Only fetch filters when search is triggered (button clicked), not on every keystroke
-  const shouldFetchFilters = searchTriggered || filters.length > 0 || selectedTypes.length > 0
-  const { data: filterData, isLoading } = useFilters(shouldFetchFilters ? '' : undefined)
-
-  // Reset the search trigger after using it for filter fetching
-  useEffect(() => {
-    if (searchTriggered && shouldFetchFilters) {
-      resetSearchTrigger()
-    }
-  }, [searchTriggered, shouldFetchFilters, resetSearchTrigger])
+  // Always fetch filters to show available types and capabilities
+  // The filters endpoint returns type counts which are useful to see before searching
+  const { data: filterData, isLoading } = useFilters('')
 
   // Local state for filter inputs
   const [pathFilter, setPathFilter] = useState('')
