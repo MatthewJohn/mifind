@@ -240,7 +240,8 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 	capabilities := h.getProviderCapabilitiesForResults(r.Context(), response.Results)
 
 	// Always include type filter capabilities from type registry
-	h.addTypeFilterCapabilities(capabilities)
+	// Include actual counts from search results
+	h.addTypeFilterCapabilities(capabilities, result.TypeCounts)
 
 	resp := SearchResponse{
 		Entities:     entities,
@@ -476,7 +477,7 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 		// IMPORTANT: Always include type filter capabilities from type registry
 		// This ensures entity type filters (file, photo, video, etc.) are always available
 		// even when providers that expose them are skipped due to unsupported filters
-		h.addTypeFilterCapabilities(capabilities)
+		h.addTypeFilterCapabilities(capabilities, filterResult.TypeCounts)
 
 		// Fetch pre-obtained values for providers with results (e.g., Immich people, albums)
 		// These are provider-wide filters, not result-based
@@ -491,7 +492,8 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 		capabilities = allCapabilities
 
 		// Always include type filter capabilities from type registry
-		h.addTypeFilterCapabilities(capabilities)
+		// No type counts available when no search query
+		h.addTypeFilterCapabilities(capabilities, nil)
 
 		// Fetch pre-obtained filter values
 		preObtainedValues = h.getPreObtainedFilterValues(r.Context(), capabilities)
@@ -542,16 +544,22 @@ func (h *Handlers) getProviderCapabilitiesForResults(ctx context.Context, result
 // The entity type filter is a core feature that should be visible regardless of
 // which providers returned results (e.g., when filtering by person, filesystem
 // is skipped but we still want to show "file" as a type option).
-func (h *Handlers) addTypeFilterCapabilities(capabilities map[string]provider.FilterCapability) {
+// The typeCounts parameter is used to populate actual counts for each type.
+func (h *Handlers) addTypeFilterCapabilities(capabilities map[string]provider.FilterCapability, typeCounts map[string]int) {
 	// Get all registered types from the type registry
 	allTypes := h.typeRegistry.GetAll()
 
-	// Build filter options from type registry
+	// Build filter options from type registry with actual counts
 	typeOptions := make([]provider.FilterOption, 0, len(allTypes))
 	for _, t := range allTypes {
+		count := 0
+		if typeCounts != nil {
+			count = typeCounts[t.Name]
+		}
 		typeOptions = append(typeOptions, provider.FilterOption{
 			Value: t.Name,
 			Label: t.Name,
+			Count: count,
 		})
 	}
 
