@@ -41,8 +41,9 @@ func NewClient(baseURL, apiKey string, insecureSkipVerify bool) *Client {
 }
 
 // Search performs a search query against the Immich API.
+// Note: The Immich search API only returns assets and albums, not people.
 func (c *Client) Search(ctx context.Context, query string, limit int) (*SearchResponse, error) {
-	// Immich uses /api/search/METADATA for smart search with metadata
+	// Immich uses /api/search/metadata for smart search with metadata
 	url := fmt.Sprintf("%s/api/search/metadata", c.baseURL)
 
 	// Build search request body

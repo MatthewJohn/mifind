@@ -3,6 +3,7 @@ package immich
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/yourname/mifind/internal/provider"
@@ -217,10 +218,18 @@ func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]ty
 		}
 	}
 
-	// Add people
-	if searchResult.People != nil {
-		for _, person := range searchResult.People.Items {
-			entities = append(entities, p.personToEntity(person))
+	// Add people - fallback since Immich search API doesn't return people
+	// Fetch all people and filter locally by name
+	people, err := p.client.ListPeople(ctx, 0)
+	if err == nil && len(people) > 0 {
+		queryLower := strings.ToLower(query.Query)
+		for _, person := range people {
+			if person.Name != "" && strings.Contains(strings.ToLower(person.Name), queryLower) {
+				entities = append(entities, p.personToEntity(person))
+				if query.Limit > 0 && len(entities) >= query.Limit {
+					break
+				}
+			}
 		}
 	}
 
