@@ -2,14 +2,19 @@ package immich
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/yourname/mifind/internal/types"
 )
 
 // FlexibleFloat64 handles unmarshaling from either string or float64.
-// Immich API returns duration as an empty string for images, and as a number for videos.
+// Immich API returns duration in various formats:
+// - Empty string "" for images (no duration)
+// - Time duration string "0:00:00.00000" for videos
+// - Direct number (float64)
 type FlexibleFloat64 float64
 
 // UnmarshalJSON implements json.Unmarshaler for FlexibleFloat64.
@@ -24,7 +29,7 @@ func (f *FlexibleFloat64) UnmarshalJSON(data []byte) error {
 		*f = 0
 		return nil
 	}
-	// Handle string number
+	// Handle string value
 	if len(data) > 0 && data[0] == '"' {
 		var s string
 		if err := json.Unmarshal(data, &s); err != nil {
@@ -34,11 +39,19 @@ func (f *FlexibleFloat64) UnmarshalJSON(data []byte) error {
 			*f = 0
 			return nil
 		}
+		// Try to parse as float first
 		val, err := strconv.ParseFloat(s, 64)
+		if err == nil {
+			*f = FlexibleFloat64(val)
+			return nil
+		}
+		// Try to parse as duration (format: "0:00:00.00000")
+		// Parse it manually since time.ParseDuration doesn't handle HH:MM:SS.mmmm
+		duration, err := parseDurationString(s)
 		if err != nil {
 			return err
 		}
-		*f = FlexibleFloat64(val)
+		*f = FlexibleFloat64(duration.Seconds())
 		return nil
 	}
 	// Handle direct number
@@ -48,6 +61,30 @@ func (f *FlexibleFloat64) UnmarshalJSON(data []byte) error {
 	}
 	*f = FlexibleFloat64(val)
 	return nil
+}
+
+// parseDurationString parses a duration string in format "HH:MM:SS.mmmm" or "MM:SS.mmmm"
+func parseDurationString(s string) (time.Duration, error) {
+	// Try standard duration format first
+	if d, err := time.ParseDuration(s); err == nil {
+		return d, nil
+	}
+	// Parse "HH:MM:SS.mmmm" or "0:MM:SS.mmmm" format
+	// Split by colons
+	var hours, minutes, seconds float64
+	parts := strings.Split(s, ":")
+	if len(parts) == 3 {
+		fmt.Sscanf(parts[0], "%f", &hours)
+		fmt.Sscanf(parts[1], "%f", &minutes)
+		fmt.Sscanf(parts[2], "%f", &seconds)
+		return time.Duration(hours*3600+minutes*60+seconds) * time.Second, nil
+	}
+	if len(parts) == 2 {
+		fmt.Sscanf(parts[0], "%f", &minutes)
+		fmt.Sscanf(parts[1], "%f", &seconds)
+		return time.Duration(minutes*60+seconds) * time.Second, nil
+	}
+	return 0, fmt.Errorf("invalid duration format: %s", s)
 }
 
 // Value returns the float64 value.
