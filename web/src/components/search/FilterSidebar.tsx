@@ -268,7 +268,7 @@ export function FilterSidebar() {
                 <div className="mt-3 space-y-3 pl-2 border-l-2 border-gray-200">
                   {Object.entries(filterData.capabilities)
                     .filter(([key]) => !['type', 'path', 'extension', 'size'].includes(key))
-                    .slice(0, 5)
+                    .slice(0, 10) // Show up to 10 additional filters
                     .map(([key, cap]: [string, any]) => {
                       // Check if we have pre-obtained values from the API
                       const preObtainedValues = filterData.values?.[key]
@@ -276,31 +276,87 @@ export function FilterSidebar() {
                       const options = preObtainedValues || cap.Options
                       const hasOptions = options && options.length > 0
 
+                      // Don't show filters with no options and no description (likely not useful)
+                      if (!hasOptions && !cap.Description) {
+                        return null
+                      }
+
+                      // Person filter gets special multi-select treatment
+                      const isPersonFilter = key === 'person'
+                      const currentFilterValues = filters
+                        .filter(f => f.key === key)
+                        .map(f => String(f.value))
+
                       return (
                         <div key={key}>
-                          <h4 className="text-xs font-medium text-gray-500 mb-1">{cap.Description || key}</h4>
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="text-xs font-medium text-gray-500">{cap.Description || key}</h4>
+                            {currentFilterValues.length > 0 && (
+                              <button
+                                onClick={() => removeFiltersByKey(key)}
+                                className="text-xs text-blue-600 hover:text-blue-800"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
                           {hasOptions ? (
-                            <select
-                              className="w-full text-xs border border-gray-300 rounded px-2 py-1"
-                              onChange={(e) => {
-                                const value = e.target.value
-                                if (value) {
-                                  removeFilter(key)
-                                  addFilter({ key, operator: 'eq', value })
-                                } else {
-                                  removeFilter(key)
-                                }
-                              }}
-                              value={String(filters.find(f => f.key === key)?.value ?? '')}
-                            >
-                              <option value="">All</option>
-                              {options.map((opt: any) => (
-                                <option key={opt.Value} value={opt.Value}>
-                                  {opt.Label || opt.Value}
-                                  {opt.Count > 0 ? ` (${opt.Count})` : ''}
-                                </option>
-                              ))}
-                            </select>
+                            isPersonFilter ? (
+                              // Multi-select for people using checkboxes
+                              <div className="max-h-40 overflow-y-auto border border-gray-200 rounded p-2 space-y-1">
+                                {options.map((opt: any) => (
+                                  <label key={opt.Value} className="flex items-center gap-2 cursor-pointer group text-xs">
+                                    <input
+                                      type="checkbox"
+                                      checked={currentFilterValues.includes(opt.Value)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          addFilter({ key, operator: 'eq', value: opt.Value })
+                                        } else {
+                                          // Remove this specific value
+                                          const filterToRemove = filters.find(f => f.key === key && String(f.value) === opt.Value)
+                                          if (filterToRemove) {
+                                            // Note: we'd need to enhance removeFilter to handle by key+value
+                                            // For now, just remove all and re-add the others
+                                            removeFiltersByKey(key)
+                                            currentFilterValues
+                                              .filter(v => v !== opt.Value)
+                                              .forEach(v => addFilter({ key, operator: 'eq', value: v }))
+                                          }
+                                        }
+                                      }}
+                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="text-gray-600 group-hover:text-gray-900">
+                                      {opt.Label || opt.Value}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            ) : (
+                              // Single select for other filters
+                              <select
+                                className="w-full text-xs border border-gray-300 rounded px-2 py-1"
+                                onChange={(e) => {
+                                  const value = e.target.value
+                                  if (value) {
+                                    removeFiltersByKey(key)
+                                    addFilter({ key, operator: 'eq', value })
+                                  } else {
+                                    removeFiltersByKey(key)
+                                  }
+                                }}
+                                value={currentFilterValues[0] ?? ''}
+                              >
+                                <option value="">All</option>
+                                {options.map((opt: any) => (
+                                  <option key={opt.Value} value={opt.Value}>
+                                    {opt.Label || opt.Value}
+                                    {opt.Count > 0 ? ` (${opt.Count})` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            )
                           ) : (
                             <input
                               type="text"
@@ -310,7 +366,7 @@ export function FilterSidebar() {
                                 if (e.key === 'Enter') {
                                   const target = e.target as HTMLInputElement
                                   if (target.value.trim()) {
-                                    removeFilter(key)
+                                    removeFiltersByKey(key)
                                     addFilter({ key, operator: 'contains', value: target.value.trim() })
                                   }
                                 }
