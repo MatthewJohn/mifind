@@ -146,8 +146,26 @@ func (f *Federator) searchProvider(ctx context.Context, providerName string, que
 		}
 	}
 
+	// Get provider's filter capabilities to only send relevant filters
+	capabilities, err := prov.FilterCapabilities(ctx)
+	if err != nil {
+		capabilities = make(map[string]provider.FilterCapability)
+	}
+
+	// Filter the query's filters to only include keys the provider supports
+	filteredFilters := make(map[string]any)
+	for key, value := range query.Filters {
+		if _, supported := capabilities[key]; supported {
+			filteredFilters[key] = value
+		}
+	}
+
+	// Create provider query with filtered filters
+	providerQuery := query.providerQuery()
+	providerQuery.Filters = filteredFilters
+
 	// Execute search
-	entities, err := prov.Search(ctx, query.providerQuery())
+	entities, err := prov.Search(ctx, providerQuery)
 
 	// Count by type
 	typeCounts := make(map[string]int)
