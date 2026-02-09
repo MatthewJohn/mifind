@@ -666,13 +666,59 @@ func (h *Handlers) Index(w http.ResponseWriter, r *http.Request) {
 }
 
 // ProxyThumbnail proxies a thumbnail image from a provider to avoid CORS issues.
+// Supports two modes:
+// - url=<direct_url>: Proxies the given URL directly (for compatibility)
+// - id=<entity_id>: Looks up the entity and proxies its thumbnail from the provider
 func (h *Handlers) ProxyThumbnail(w http.ResponseWriter, r *http.Request) {
-	// Get the thumbnail URL from query parameter
-	thumbnailURL := r.URL.Query().Get("url")
-	if thumbnailURL == "" {
-		h.writeError(w, http.StatusBadRequest, "missing url parameter")
+	// Check for entity ID parameter first
+	entityID := r.URL.Query().Get("id")
+	if entityID != "" {
+		h.proxyThumbnailByID(w, r, entityID)
 		return
 	}
+
+	// Fall back to direct URL parameter for backward compatibility
+	thumbnailURL := r.URL.Query().Get("url")
+	if thumbnailURL == "" {
+		h.writeError(w, http.StatusBadRequest, "missing id or url parameter")
+		return
+	}
+
+	h.proxyThumbnailURL(w, r, thumbnailURL)
+}
+
+// proxyThumbnailByID looks up an entity and proxies its thumbnail.
+func (h *Handlers) proxyThumbnailByID(w http.ResponseWriter, r *http.Request, entityID string) {
+	// Hydrate the entity to get its attributes
+	entity, err := h.manager.Hydrate(r.Context(), entityID)
+	if err != nil {
+		if err == provider.ErrNotFound {
+			h.writeError(w, http.StatusNotFound, fmt.Sprintf("entity not found: %s", entityID))
+			return
+		}
+		h.writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get entity: %v", err))
+		return
+	}
+
+	// Get the original thumbnail URL from private attributes
+	thumbnailURL := ""
+	if url, ok := entity.Attributes["_immich_thumbnail_url"].(string); ok {
+		thumbnailURL = url
+	} else if url, ok := entity.Attributes["thumbnail_url"].(string); ok {
+		// Fallback to public thumbnail_url if private attribute doesn't exist
+		thumbnailURL = url
+	}
+
+	if thumbnailURL == "" {
+		h.writeError(w, http.StatusNotFound, "entity has no thumbnail URL")
+		return
+	}
+
+	h.proxyThumbnailURL(w, r, thumbnailURL)
+}
+
+// proxyThumbnailURL fetches and proxies a thumbnail from the given URL.
+func (h *Handlers) proxyThumbnailURL(w http.ResponseWriter, r *http.Request, thumbnailURL string) {
 
 	// Validate URL format
 	_, err := url.Parse(thumbnailURL)

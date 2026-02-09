@@ -502,9 +502,12 @@ func (p *Provider) assetToEntity(asset Asset) types.Entity {
 	webURL := fmt.Sprintf("%s/assets/%s", strings.TrimSuffix(p.client.baseURL, "/api"), asset.ID)
 	entity.AddAttribute("web_url", webURL)
 
-	// Build thumbnail URL
-	thumbnailURL := fmt.Sprintf("%s/api/assets/%s/thumbnail", p.client.baseURL, asset.ID)
-	entity.AddAttribute("thumbnail_url", thumbnailURL)
+	// Build thumbnail URL - use mifind proxy endpoint
+	// Store original Immich URL for the proxy to use
+	originalThumbnailURL := fmt.Sprintf("%s/api/assets/%s/thumbnail", p.client.baseURL, asset.ID)
+	entity.AddAttribute("_immich_thumbnail_url", originalThumbnailURL)
+	// Public thumbnail URL uses mifind proxy
+	entity.AddAttribute("thumbnail_url", fmt.Sprintf("/api/thumbnail?id=%s", entityID))
 
 	entity.AddAttribute("is_favorite", asset.IsFavorite)
 	entity.AddAttribute("is_archived", asset.IsArchived)
@@ -622,8 +625,11 @@ func (p *Provider) personToEntity(person Person) types.Entity {
 
 	// Build thumbnail URL if person has a thumbnail
 	if person.ThumbnailPath != "" {
-		thumbnailURL := fmt.Sprintf("%s/api/people/%s/thumbnail", p.client.baseURL, person.ID)
-		entity.AddAttribute("thumbnail_url", thumbnailURL)
+		// Store original Immich URL for the proxy to use
+		originalThumbnailURL := fmt.Sprintf("%s/api/people/%s/thumbnail", p.client.baseURL, person.ID)
+		entity.AddAttribute("_immich_thumbnail_url", originalThumbnailURL)
+		// Public thumbnail URL uses mifind proxy
+		entity.AddAttribute("thumbnail_url", fmt.Sprintf("/api/thumbnail?id=%s", entityID))
 	}
 
 	entity.AddSearchToken(displayName)
