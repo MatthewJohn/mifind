@@ -452,6 +452,11 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 		// Get capabilities only from providers that returned results
 		capabilities = h.getProviderCapabilitiesForResults(r.Context(), response.Results)
 
+		// IMPORTANT: Always include type filter capabilities from type registry
+		// This ensures entity type filters (file, photo, video, etc.) are always available
+		// even when providers that expose them are skipped due to unsupported filters
+		h.addTypeFilterCapabilities(capabilities)
+
 		// Fetch pre-obtained values for providers with results (e.g., Immich people, albums)
 		// These are provider-wide filters, not result-based
 		preObtainedValues = h.getPreObtainedFilterValues(r.Context(), capabilities)
@@ -463,6 +468,9 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		capabilities = allCapabilities
+
+		// Always include type filter capabilities from type registry
+		h.addTypeFilterCapabilities(capabilities)
 
 		// Fetch pre-obtained filter values
 		preObtainedValues = h.getPreObtainedFilterValues(r.Context(), capabilities)
@@ -507,6 +515,34 @@ func (h *Handlers) getProviderCapabilitiesForResults(ctx context.Context, result
 	}
 
 	return capabilities
+}
+
+// addTypeFilterCapabilities ensures type filter capabilities are always available.
+// The entity type filter is a core feature that should be visible regardless of
+// which providers returned results (e.g., when filtering by person, filesystem
+// is skipped but we still want to show "file" as a type option).
+func (h *Handlers) addTypeFilterCapabilities(capabilities map[string]provider.FilterCapability) {
+	// Get all registered types from the type registry
+	allTypes := h.typeRegistry.GetAll()
+
+	// Build filter options from type registry
+	typeOptions := make([]provider.FilterOption, 0, len(allTypes))
+	for _, t := range allTypes {
+		typeOptions = append(typeOptions, provider.FilterOption{
+			Value: t.Name,
+			Label: t.Name,
+		})
+	}
+
+	// Always add the type filter capability with all registered types
+	capabilities[types.AttrType] = provider.FilterCapability{
+		Type:             types.AttributeTypeString,
+		SupportsEq:       true,
+		SupportsNeq:      true,
+		SupportsContains: false,
+		Options:          typeOptions,
+		Description:      "Entity type",
+	}
 }
 
 // getPreObtainedFilterValues fetches pre-obtained filter values from providers.
