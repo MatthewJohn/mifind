@@ -31,10 +31,12 @@ const (
 	AttrShutterSpeed = "shutter"  // Shutter speed
 
 	// GPS/location attributes
-	AttrGPS       = "gps"       // GPS coordinates (lat, lng)
-	AttrLatitude  = "latitude"  // Latitude coordinate
-	AttrLongitude = "longitude" // Longitude coordinate
-	AttrLocation  = "location"  // Human-readable location name
+	AttrGPS             = "gps"              // GPS coordinates (lat, lng)
+	AttrLatitude        = "latitude"         // Latitude coordinate
+	AttrLongitude       = "longitude"        // Longitude coordinate
+	AttrLocationCountry = "location.country" // Human-readable location name
+	AttrLocationState   = "location.state"   // Human-readable location name
+	AttrLocationCity    = "location.city"    // Human-readable location name
 
 	// Media library attributes
 	AttrAlbum  = "album"  // Album name
@@ -165,11 +167,11 @@ func (b *AttributeBuilder) Merge(other map[string]any) *AttributeBuilder {
 var (
 	// AttrDefPath is the standard path attribute definition.
 	AttrDefPath = AttributeDef{
-		Name:        AttrPath,
-		Type:        AttributeTypeString,
-		Required:    false,
-		Filterable:  true,
-		Description: "File system path or resource identifier",
+		Name:          AttrPath,
+		Type:          AttributeTypeString,
+		Required:      false,
+		Filterable:    true,
+		Description:   "File system path or resource identifier",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "input",
@@ -187,11 +189,11 @@ var (
 
 	// AttrDefSize is the standard size attribute definition.
 	AttrDefSize = AttributeDef{
-		Name:        AttrSize,
-		Type:        AttributeTypeInt64,
-		Required:    false,
-		Filterable:  true,
-		Description: "Size in bytes",
+		Name:          AttrSize,
+		Type:          AttributeTypeInt64,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Size in bytes",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "range",
@@ -208,11 +210,11 @@ var (
 
 	// AttrDefModified is the standard modified time attribute definition.
 	AttrDefModified = AttributeDef{
-		Name:        AttrModified,
-		Type:        AttributeTypeTime,
-		Required:    false,
-		Filterable:  true,
-		Description: "Last modification timestamp (Unix)",
+		Name:          AttrModified,
+		Type:          AttributeTypeTime,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Last modification timestamp (Unix)",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "date-range",
@@ -229,11 +231,11 @@ var (
 
 	// AttrDefCreated is the standard created time attribute definition.
 	AttrDefCreated = AttributeDef{
-		Name:        AttrCreated,
-		Type:        AttributeTypeTime,
-		Required:    false,
-		Filterable:  true,
-		Description: "Creation timestamp (Unix)",
+		Name:          AttrCreated,
+		Type:          AttributeTypeTime,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Creation timestamp (Unix)",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "date-range",
@@ -250,11 +252,11 @@ var (
 
 	// AttrDefMimeType is the standard MIME type attribute definition.
 	AttrDefMimeType = AttributeDef{
-		Name:        AttrMimeType,
-		Type:        AttributeTypeString,
-		Required:    false,
-		Filterable:  true,
-		Description: "MIME type of the resource",
+		Name:          AttrMimeType,
+		Type:          AttributeTypeString,
+		Required:      false,
+		Filterable:    true,
+		Description:   "MIME type of the resource",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "select",
@@ -272,11 +274,11 @@ var (
 
 	// AttrDefExtension is the standard extension attribute definition.
 	AttrDefExtension = AttributeDef{
-		Name:        AttrExtension,
-		Type:        AttributeTypeString,
-		Required:    false,
-		Filterable:  true,
-		Description: "File extension without dot",
+		Name:          AttrExtension,
+		Type:          AttributeTypeString,
+		Required:      false,
+		Filterable:    true,
+		Description:   "File extension without dot",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "select",
@@ -294,11 +296,11 @@ var (
 
 	// AttrDefDuration is the standard duration attribute definition.
 	AttrDefDuration = AttributeDef{
-		Name:        AttrDuration,
-		Type:        AttributeTypeInt64,
-		Required:    false,
-		Filterable:  true,
-		Description: "Duration in seconds",
+		Name:          AttrDuration,
+		Type:          AttributeTypeInt64,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Duration in seconds",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "range",
@@ -315,11 +317,11 @@ var (
 
 	// AttrDefWidth is the standard width attribute definition.
 	AttrDefWidth = AttributeDef{
-		Name:        AttrWidth,
-		Type:        AttributeTypeInt,
-		Required:    false,
-		Filterable:  true,
-		Description: "Image/video width in pixels",
+		Name:          AttrWidth,
+		Type:          AttributeTypeInt,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Image/video width in pixels",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "range",
@@ -336,11 +338,11 @@ var (
 
 	// AttrDefHeight is the standard height attribute definition.
 	AttrDefHeight = AttributeDef{
-		Name:        AttrHeight,
-		Type:        AttributeTypeInt,
-		Required:    false,
-		Filterable:  true,
-		Description: "Image/video height in pixels",
+		Name:          AttrHeight,
+		Type:          AttributeTypeInt,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Image/video height in pixels",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "range",
@@ -357,11 +359,11 @@ var (
 
 	// AttrDefGPS is the standard GPS attribute definition.
 	AttrDefGPS = AttributeDef{
-		Name:        AttrGPS,
-		Type:        AttributeTypeGPS,
-		Required:    false,
-		Filterable:  true,
-		Description: "GPS coordinates (latitude, longitude)",
+		Name:          AttrGPS,
+		Type:          AttributeTypeGPS,
+		Required:      false,
+		Filterable:    true,
+		Description:   "GPS coordinates (latitude, longitude)",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "gps",
@@ -375,19 +377,62 @@ var (
 		},
 	}
 
-	// AttrDefLocation is the standard location attribute definition.
-	AttrDefLocation = AttributeDef{
-		Name:        AttrLocation,
-		Type:        AttributeTypeString,
-		Required:    false,
-		Filterable:  true,
-		Description: "Human-readable location name",
+	// AttrDefLocation is the standard location country attribute definition.
+	AttrDefLocationCountry = AttributeDef{
+		Name:          AttrLocationCountry,
+		Type:          AttributeTypeString,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Country name",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "input",
 			Icon:     "Map",
 			Group:    "metadata",
-			Label:    "Location",
+			Label:    "Country",
+			Priority: 26,
+		},
+		Filter: FilterConfig{
+			SupportsEq:       true,
+			SupportsContains: true,
+			Cacheable:        true,
+			CacheTTL:         24 * time.Hour,
+		},
+	}
+	// AttrDefLocation is the standard location state attribute definition.
+	AttrDefLocationState = AttributeDef{
+		Name:          AttrLocationCountry,
+		Type:          AttributeTypeString,
+		Required:      false,
+		Filterable:    true,
+		Description:   "State name",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "input",
+			Icon:     "Map",
+			Group:    "metadata",
+			Label:    "State",
+			Priority: 26,
+		},
+		Filter: FilterConfig{
+			SupportsEq:       true,
+			SupportsContains: true,
+			Cacheable:        true,
+			CacheTTL:         24 * time.Hour,
+		},
+	}
+	AttrDefLocationCity = AttributeDef{
+		Name:          AttrLocationCity,
+		Type:          AttributeTypeString,
+		Required:      false,
+		Filterable:    true,
+		Description:   "City name",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "input",
+			Icon:     "Map",
+			Group:    "metadata",
+			Label:    "City",
 			Priority: 26,
 		},
 		Filter: FilterConfig{
@@ -400,11 +445,11 @@ var (
 
 	// AttrDefCamera is the standard camera attribute definition.
 	AttrDefCamera = AttributeDef{
-		Name:        AttrCamera,
-		Type:        AttributeTypeString,
-		Required:    false,
-		Filterable:  true,
-		Description: "Camera make/model",
+		Name:          AttrCamera,
+		Type:          AttributeTypeString,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Camera make/model",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "select",
@@ -423,11 +468,11 @@ var (
 
 	// AttrDefAlbum is the standard album attribute definition.
 	AttrDefAlbum = AttributeDef{
-		Name:        AttrAlbum,
-		Type:        AttributeTypeString,
-		Required:    false,
-		Filterable:  true,
-		Description: "Album name",
+		Name:          AttrAlbum,
+		Type:          AttributeTypeString,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Album name",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "select",
@@ -446,11 +491,11 @@ var (
 
 	// AttrDefArtist is the standard artist attribute definition.
 	AttrDefArtist = AttributeDef{
-		Name:        AttrArtist,
-		Type:        AttributeTypeString,
-		Required:    false,
-		Filterable:  true,
-		Description: "Artist name",
+		Name:          AttrArtist,
+		Type:          AttributeTypeString,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Artist name",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "select",
@@ -469,11 +514,11 @@ var (
 
 	// AttrDefLabels is the standard labels attribute definition.
 	AttrDefLabels = AttributeDef{
-		Name:        AttrLabels,
-		Type:        AttributeTypeStringSlice,
-		Required:    false,
-		Filterable:  true,
-		Description: "Labels or tags",
+		Name:          AttrLabels,
+		Type:          AttributeTypeStringSlice,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Labels or tags",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "multiselect",
@@ -483,19 +528,19 @@ var (
 			Priority: 50,
 		},
 		Filter: FilterConfig{
-			SupportsEq:  true,
-			Cacheable:   true,
-			CacheTTL:    24 * time.Hour,
+			SupportsEq: true,
+			Cacheable:  true,
+			CacheTTL:   24 * time.Hour,
 		},
 	}
 
 	// AttrDefStatus is the standard status attribute definition.
 	AttrDefStatus = AttributeDef{
-		Name:        AttrStatus,
-		Type:        AttributeTypeString,
-		Required:    false,
-		Filterable:  true,
-		Description: "Status of the item",
+		Name:          AttrStatus,
+		Type:          AttributeTypeString,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Status of the item",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "select",
@@ -513,11 +558,11 @@ var (
 
 	// AttrDefPriority is the standard priority attribute definition.
 	AttrDefPriority = AttributeDef{
-		Name:        AttrPriority,
-		Type:        AttributeTypeString,
-		Required:    false,
-		Filterable:  true,
-		Description: "Priority level",
+		Name:          AttrPriority,
+		Type:          AttributeTypeString,
+		Required:      false,
+		Filterable:    true,
+		Description:   "Priority level",
 		AlwaysVisible: false,
 		UI: UIConfig{
 			Widget:   "select",

@@ -19,7 +19,7 @@ import (
 type Provider struct {
 	provider.BaseProvider
 	client *Client
-	logger *zerolog.Logger // Pointer to allow nil/no-op logger
+	logger *zerolog.Logger
 }
 
 // NewProvider creates a new Immich provider.
@@ -226,7 +226,7 @@ func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]ty
 
 	// Extract filters from query
 	var peopleIDs []string
-	var location string
+	var city, state, country string
 	var albumID string
 
 	// Handle person filter - can be a single value or array of values
@@ -249,12 +249,24 @@ func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]ty
 			Msg("Immich: Filter by people")
 	}
 
-	// Handle location filter
-	if locFilter, ok := query.Filters[types.AttrLocation]; ok && locFilter != nil {
-		location = fmt.Sprint(locFilter)
+	// Handle location filters
+	if cityFilter, ok := query.Filters[types.AttrLocationCity]; ok && cityFilter != nil {
+		city = fmt.Sprint(cityFilter)
 		p.logger.Debug().
-			Str("location", location).
-			Msg("Immich: Filter by location")
+			Str("city", city).
+			Msg("Immich: Filter by city")
+	}
+	if stateFilter, ok := query.Filters[types.AttrLocationState]; ok && stateFilter != nil {
+		city = fmt.Sprint(stateFilter)
+		p.logger.Debug().
+			Str("state", state).
+			Msg("Immich: Filter by state")
+	}
+	if countryFilter, ok := query.Filters[types.AttrLocationCountry]; ok && countryFilter != nil {
+		city = fmt.Sprint(countryFilter)
+		p.logger.Debug().
+			Str("country", country).
+			Msg("Immich: Filter by country")
 	}
 
 	// Handle album filter
@@ -265,7 +277,7 @@ func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]ty
 			Msg("Immich: Filter by album")
 	}
 
-	searchResult, err := p.client.SearchWithFilters(ctx, query.Query, query.Limit, peopleIDs, location, albumID)
+	searchResult, err := p.client.SearchWithFilters(ctx, query.Query, query.Limit, peopleIDs, country, state, city, albumID)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("Immich: Search request failed")
 		return nil, err
@@ -342,8 +354,12 @@ func (p *Provider) FilterValues(ctx context.Context, filterName string) ([]provi
 		return p.getPeopleFilterOptions(ctx)
 	case types.AttrAlbum:
 		return p.getAlbumsFilterOptions(ctx)
-	case types.AttrLocation:
-		return p.getLocationFilterOptions(ctx)
+	case types.AttrLocationCity:
+		return p.getCityFilterOptions(ctx)
+	case types.AttrLocationState:
+		return p.getStateFilterOptions(ctx)
+	case types.AttrLocationCountry:
+		return p.getCountryFilterOptions(ctx)
 	default:
 		return []provider.FilterOption{}, nil
 	}
@@ -389,34 +405,72 @@ func (p *Provider) getAlbumsFilterOptions(ctx context.Context) ([]provider.Filte
 	return options, nil
 }
 
+func (p *Provider) getCityFilterOptions(ctx context.Context) ([]provider.FilterOption, error) {
+	_, _, cityFilterOptions, err := p.getLocationFilterOptions(ctx)
+	return cityFilterOptions, err
+}
+
+func (p *Provider) getStateFilterOptions(ctx context.Context) ([]provider.FilterOption, error) {
+	_, stateFilterOptions, _, err := p.getLocationFilterOptions(ctx)
+	return stateFilterOptions, err
+}
+
+func (p *Provider) getCountryFilterOptions(ctx context.Context) ([]provider.FilterOption, error) {
+	countryFilterOptions, _, _, err := p.getLocationFilterOptions(ctx)
+	return countryFilterOptions, err
+}
+
 // getLocationFilterOptions returns unique locations as filter options.
-func (p *Provider) getLocationFilterOptions(ctx context.Context) ([]provider.FilterOption, error) {
+func (p *Provider) getLocationFilterOptions(ctx context.Context) ([]provider.FilterOption, []provider.FilterOption, []provider.FilterOption, error) {
 	// For locations, we need to extract unique location values from assets
 	// This requires a search with no query to get all assets, then extract locations
-	searchResult, err := p.client.Search(ctx, "", 1000)
+	searchResults, err := p.client.GetCitySearch(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search for locations: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to search for locations: %w", err)
 	}
 
 	// Extract unique locations
-	locationMap := make(map[string]int)
-	if searchResult.Assets != nil {
-		for _, asset := range searchResult.Assets.Items {
-			if asset.Location != "" {
-				locationMap[asset.Location]++
-			}
+	cityMap := make(map[string]int)
+	stateMap := make(map[string]int)
+	countryMap := make(map[string]int)
+
+	for _, asset := range searchResults {
+		if asset.City != "" {
+			cityMap[asset.City]++
+		}
+		if asset.State != "" {
+			stateMap[asset.State]++
+		}
+		if asset.Country != "" {
+			countryMap[asset.Country]++
 		}
 	}
 
-	options := make([]provider.FilterOption, 0, len(locationMap))
-	for location, count := range locationMap {
-		options = append(options, provider.FilterOption{
-			Value: location,
-			Label: location,
+	cityOptions := make([]provider.FilterOption, 0, len(cityMap))
+	for city, count := range cityMap {
+		cityOptions = append(cityOptions, provider.FilterOption{
+			Value: city,
+			Label: city,
 			Count: count,
 		})
 	}
-	return options, nil
+	stateOptions := make([]provider.FilterOption, 0, len(stateMap))
+	for state, count := range cityMap {
+		stateOptions = append(stateOptions, provider.FilterOption{
+			Value: state,
+			Label: state,
+			Count: count,
+		})
+	}
+	countryOptions := make([]provider.FilterOption, 0, len(countryMap))
+	for country, count := range countryMap {
+		countryOptions = append(countryOptions, provider.FilterOption{
+			Value: country,
+			Label: country,
+			Count: count,
+		})
+	}
+	return countryOptions, stateOptions, cityOptions, nil
 }
 
 // FilterCapabilities returns the filter capabilities for the Immich provider.
@@ -481,11 +535,23 @@ func (p *Provider) FilterCapabilities(ctx context.Context) (map[string]provider.
 			SupportsRange: true,
 			Description:   "GPS coordinates",
 		},
-		types.AttrLocation: {
+		types.AttrLocationCity: {
 			Type:             types.AttributeTypeString,
 			SupportsEq:       true,
 			SupportsContains: true,
-			Description:      "Location name",
+			Description:      "City name",
+		},
+		types.AttrLocationState: {
+			Type:             types.AttributeTypeString,
+			SupportsEq:       true,
+			SupportsContains: true,
+			Description:      "State name",
+		},
+		types.AttrLocationCountry: {
+			Type:             types.AttributeTypeString,
+			SupportsEq:       true,
+			SupportsContains: true,
+			Description:      "Country name",
 		},
 		types.AttrAlbum: {
 			Type:        types.AttributeTypeString,
@@ -526,12 +592,12 @@ func (p *Provider) assetToEntity(asset Asset) types.Entity {
 	entity.AddAttribute(types.AttrSize, asset.FileSize)
 
 	// Build web URL for Immich asset
-	webURL := fmt.Sprintf("%s/assets/%s", strings.TrimSuffix(p.client.baseURL, "/api"), asset.ID)
+	webURL := fmt.Sprintf("%s/photos/%s", strings.TrimSuffix(p.client.baseURL, "/api"), asset.ID)
 	entity.AddAttribute("web_url", webURL)
 
 	// Build thumbnail URL - use mifind proxy endpoint
 	// Store original Immich URL for the proxy to use
-	originalThumbnailURL := fmt.Sprintf("%s/api/assets/%s/thumbnail", p.client.baseURL, asset.ID)
+	originalThumbnailURL := fmt.Sprintf("%s/api/assets/%s/thumbnail?size=thumbnail", p.client.baseURL, asset.ID)
 	entity.AddAttribute("_immich_thumbnail_url", originalThumbnailURL)
 	// Public thumbnail URL uses mifind proxy
 	entity.AddAttribute("thumbnail_url", fmt.Sprintf("/api/thumbnail?id=%s", entityID))
@@ -552,8 +618,14 @@ func (p *Provider) assetToEntity(asset Asset) types.Entity {
 	if asset.Description != "" {
 		entity.AddAttribute(types.AttrDescription, asset.Description)
 	}
-	if asset.Location != "" {
-		entity.AddAttribute(types.AttrLocation, asset.Location)
+	if asset.Country != "" {
+		entity.AddAttribute(types.AttrLocationCountry, asset.Country)
+	}
+	if asset.State != "" {
+		entity.AddAttribute(types.AttrLocationState, asset.State)
+	}
+	if asset.City != "" {
+		entity.AddAttribute(types.AttrLocationCity, asset.City)
 	}
 
 	// Add EXIF data
@@ -592,8 +664,14 @@ func (p *Provider) assetToEntity(asset Asset) types.Entity {
 	if asset.Description != "" {
 		entity.AddSearchToken(asset.Description)
 	}
-	if asset.Location != "" {
-		entity.AddSearchToken(asset.Location)
+	if asset.Country != "" {
+		entity.AddSearchToken(asset.Country)
+	}
+	if asset.State != "" {
+		entity.AddSearchToken(asset.State)
+	}
+	if asset.City != "" {
+		entity.AddSearchToken(asset.City)
 	}
 
 	// Add album relationship

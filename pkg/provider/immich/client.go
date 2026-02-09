@@ -52,17 +52,19 @@ func NewClientWithLogger(baseURL, apiKey string, insecureSkipVerify bool, logger
 // Search performs a search query against the Immich API.
 // Note: The Immich search API only returns assets and albums, not people.
 func (c *Client) Search(ctx context.Context, query string, limit int) (*SearchResponse, error) {
-	return c.SearchWithFilters(ctx, query, limit, nil, "", "")
+	return c.SearchWithFilters(ctx, query, limit, nil, "", "", "", "")
 }
 
 // SearchWithFilters performs a search query with filters for people, locations, etc.
-func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int, peopleIDs []string, location string, albumID string) (*SearchResponse, error) {
+func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int, peopleIDs []string, country, state, city, albumID string) (*SearchResponse, error) {
 	if c.logger != nil {
 		c.logger.Debug().
 			Str("query", query).
 			Int("limit", limit).
 			Strs("people", peopleIDs).
-			Str("location", location).
+			Str("country", country).
+			Str("state", state).
+			Str("city", city).
 			Str("album", albumID).
 			Msg("Immich: Search request")
 	}
@@ -80,14 +82,18 @@ func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int,
 
 	// Add people filter if specified
 	if len(peopleIDs) > 0 {
-		reqBody["personIds"] = map[string]any{
-			"personIds": peopleIDs,
-		}
+		reqBody["personIds"] = peopleIDs
 	}
 
 	// Add location filter if specified
-	if location != "" {
-		reqBody["location"] = location
+	if country != "" {
+		reqBody["country"] = country
+	}
+	if state != "" {
+		reqBody["state"] = state
+	}
+	if city != "" {
+		reqBody["city"] = city
 	}
 
 	// Add album filter if specified
@@ -117,6 +123,17 @@ func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int,
 	}
 
 	return &result, nil
+}
+
+func (c *Client) GetCitySearch(ctx context.Context) ([]Asset, error) {
+	url := fmt.Sprintf("%s/api/search/cities", c.baseURL)
+
+	var result []Asset
+	if err := c.doGet(ctx, url, &result); err != nil {
+		return nil, fmt.Errorf("get asset failed: %w", err)
+	}
+
+	return result, nil
 }
 
 // mustMarshalJSON marshals to JSON or panics.

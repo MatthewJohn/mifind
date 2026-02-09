@@ -97,24 +97,26 @@ func (f FlexibleFloat64) Value() float64 {
 
 // Asset represents a media asset (photo or video) in Immich.
 type Asset struct {
-	ID               string    `json:"id"`
-	DeviceAssetID    string    `json:"deviceAssetId"`
-	Type             string    `json:"type"` // "IMAGE" or "VIDEO"
-	OriginalPath     string    `json:"originalPath"`
-	OriginalFileName string    `json:"originalFileName"`
-	Width            int       `json:"width,omitempty"`
-	Height           int       `json:"height,omitempty"`
-	ExifInfo         *ExifInfo `json:"exifInfo,omitempty"`
-	Thumbhash        string    `json:"thumbhash,omitempty"`
-	FileSize         int64          `json:"fileSize,omitempty"`
+	ID               string          `json:"id"`
+	DeviceAssetID    string          `json:"deviceAssetId"`
+	Type             string          `json:"type"` // "IMAGE" or "VIDEO"
+	OriginalPath     string          `json:"originalPath"`
+	OriginalFileName string          `json:"originalFileName"`
+	Width            int             `json:"width,omitempty"`
+	Height           int             `json:"height,omitempty"`
+	ExifInfo         *ExifInfo       `json:"exifInfo,omitempty"`
+	Thumbhash        string          `json:"thumbhash,omitempty"`
+	FileSize         int64           `json:"fileSize,omitempty"`
 	Duration         FlexibleFloat64 `json:"duration,omitempty"`
-	CreatedAt        time.Time      `json:"createdAt"`
-	UpdatedAt        time.Time `json:"updatedAt"`
-	LocalDateTime    time.Time `json:"localDateTime"`
-	IsFavorite       bool      `json:"isFavorite"`
-	IsArchived       bool      `json:"isArchived"`
-	Description      string    `json:"description,omitempty"`
-	Location         string    `json:"location,omitempty"`
+	CreatedAt        time.Time       `json:"createdAt"`
+	UpdatedAt        time.Time       `json:"updatedAt"`
+	LocalDateTime    time.Time       `json:"localDateTime"`
+	IsFavorite       bool            `json:"isFavorite"`
+	IsArchived       bool            `json:"isArchived"`
+	Description      string          `json:"description,omitempty"`
+	Country          string          `json:"country,omitempty"`
+	State            string          `json:"state,omitempty"`
+	City             string          `json:"city,omitempty"`
 }
 
 // ExifInfo contains EXIF metadata for photos.
