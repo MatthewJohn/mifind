@@ -518,6 +518,12 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 		// Fetch pre-obtained values for providers with results (e.g., Immich people, albums)
 		// These are provider-wide filters, not result-based
 		preObtainedValues = h.getPreObtainedFilterValues(r.Context(), capabilities)
+
+		// Debug: Log capabilities and pre-obtained values
+		h.logger.Debug().
+			Strs("capabilities", mapKeys(capabilities)).
+			Strs("pre_obtained_values", mapKeys(preObtainedValues)).
+			Msg("GetFilters: capabilities and pre-obtained values")
 	} else {
 		// No search query - get all capabilities
 		allCapabilities, err := h.manager.FilterCapabilities(r.Context())
@@ -934,4 +940,27 @@ func formatValidationErrors(errs []error) []map[string]interface{} {
 		}
 	}
 	return details
+}
+
+// mapKeys extracts keys from a map for logging/debugging
+func mapKeys(m any) []string {
+	if m == nil {
+		return nil
+	}
+	keys := make([]string, 0)
+	switch v := m.(type) {
+	case map[string]provider.FilterCapability:
+		for k := range v {
+			keys = append(keys, k)
+		}
+	case map[string][]provider.FilterOption:
+		for k := range v {
+			keys = append(keys, k)
+		}
+	case map[string]types.AttributeDef:
+		for k := range v {
+			keys = append(keys, k)
+		}
+	}
+	return keys
 }
