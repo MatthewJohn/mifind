@@ -234,6 +234,17 @@ type Provider interface {
 	Shutdown(ctx context.Context) error
 }
 
+// AttributeExtensionsProvider is an optional interface that providers can implement
+// to extend or override core attribute definitions with provider-specific metadata.
+// This enables provider-specific behavior (like custom UI widgets or caching) without
+// hardcoded knowledge in core code.
+type AttributeExtensionsProvider interface {
+	// AttributeExtensions returns provider-specific attribute definitions that
+	// extend or override core attribute definitions.
+	// For example, Immich could define "person" with multiselect UI and 24h caching.
+	AttributeExtensions(ctx context.Context) map[string]types.AttributeDef
+}
+
 // SearchQuery defines a search query to be executed against a provider.
 type SearchQuery struct {
 	// Query is the search string (may be empty for match-all queries)
@@ -541,6 +552,13 @@ func (b *BaseProvider) SupportsRelevanceScore() bool {
 // Providers with cleanup needs should override this.
 func (b *BaseProvider) Shutdown(ctx context.Context) error {
 	return nil
+}
+
+// AttributeExtensions returns an empty map by default.
+// Providers that want to extend attribute definitions should implement
+// AttributeExtensionsProvider and override this method.
+func (b *BaseProvider) AttributeExtensions(ctx context.Context) map[string]types.AttributeDef {
+	return make(map[string]types.AttributeDef)
 }
 
 // Common errors returned by providers.

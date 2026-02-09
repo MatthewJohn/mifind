@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 // Standard attribute keys that should be used across providers
 // for common concepts. This enables unified filtering.
 const (
@@ -159,6 +161,7 @@ func (b *AttributeBuilder) Merge(other map[string]any) *AttributeBuilder {
 }
 
 // Common attribute definitions for reuse across type definitions.
+// These include full UI and Filter metadata to enable generic rendering.
 var (
 	// AttrDefPath is the standard path attribute definition.
 	AttrDefPath = AttributeDef{
@@ -167,6 +170,19 @@ var (
 		Required:    false,
 		Filterable:  true,
 		Description: "File system path or resource identifier",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "input",
+			Icon:     "Folder",
+			Group:    "file",
+			Label:    "Path",
+			Priority: 10,
+		},
+		Filter: FilterConfig{
+			SupportsEq:       true,
+			SupportsContains: true,
+			Cacheable:        false,
+		},
 	}
 
 	// AttrDefSize is the standard size attribute definition.
@@ -176,6 +192,18 @@ var (
 		Required:    false,
 		Filterable:  true,
 		Description: "Size in bytes",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "range",
+			Icon:     "HardDrive",
+			Group:    "file",
+			Label:    "Size",
+			Priority: 11,
+		},
+		Filter: FilterConfig{
+			SupportsRange: true,
+			Cacheable:     false,
+		},
 	}
 
 	// AttrDefModified is the standard modified time attribute definition.
@@ -185,6 +213,39 @@ var (
 		Required:    false,
 		Filterable:  true,
 		Description: "Last modification timestamp (Unix)",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "date-range",
+			Icon:     "Calendar",
+			Group:    "metadata",
+			Label:    "Modified",
+			Priority: 20,
+		},
+		Filter: FilterConfig{
+			SupportsRange: true,
+			Cacheable:     false,
+		},
+	}
+
+	// AttrDefCreated is the standard created time attribute definition.
+	AttrDefCreated = AttributeDef{
+		Name:        AttrCreated,
+		Type:        AttributeTypeTime,
+		Required:    false,
+		Filterable:  true,
+		Description: "Creation timestamp (Unix)",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "date-range",
+			Icon:     "CalendarPlus",
+			Group:    "metadata",
+			Label:    "Created",
+			Priority: 21,
+		},
+		Filter: FilterConfig{
+			SupportsRange: true,
+			Cacheable:     false,
+		},
 	}
 
 	// AttrDefMimeType is the standard MIME type attribute definition.
@@ -194,6 +255,19 @@ var (
 		Required:    false,
 		Filterable:  true,
 		Description: "MIME type of the resource",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "select",
+			Icon:     "FileText",
+			Group:    "file",
+			Label:    "MIME Type",
+			Priority: 12,
+		},
+		Filter: FilterConfig{
+			SupportsEq:  true,
+			SupportsNeq: true,
+			Cacheable:   false,
+		},
 	}
 
 	// AttrDefExtension is the standard extension attribute definition.
@@ -203,6 +277,19 @@ var (
 		Required:    false,
 		Filterable:  true,
 		Description: "File extension without dot",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "select",
+			Icon:     "File",
+			Group:    "file",
+			Label:    "Extension",
+			Priority: 13,
+		},
+		Filter: FilterConfig{
+			SupportsEq:  true,
+			SupportsNeq: true,
+			Cacheable:   false,
+		},
 	}
 
 	// AttrDefDuration is the standard duration attribute definition.
@@ -212,6 +299,60 @@ var (
 		Required:    false,
 		Filterable:  true,
 		Description: "Duration in seconds",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "range",
+			Icon:     "Clock",
+			Group:    "media",
+			Label:    "Duration",
+			Priority: 30,
+		},
+		Filter: FilterConfig{
+			SupportsRange: true,
+			Cacheable:     false,
+		},
+	}
+
+	// AttrDefWidth is the standard width attribute definition.
+	AttrDefWidth = AttributeDef{
+		Name:        AttrWidth,
+		Type:        AttributeTypeInt,
+		Required:    false,
+		Filterable:  true,
+		Description: "Image/video width in pixels",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "range",
+			Icon:     "Maximize",
+			Group:    "media",
+			Label:    "Width",
+			Priority: 31,
+		},
+		Filter: FilterConfig{
+			SupportsRange: true,
+			Cacheable:     false,
+		},
+	}
+
+	// AttrDefHeight is the standard height attribute definition.
+	AttrDefHeight = AttributeDef{
+		Name:        AttrHeight,
+		Type:        AttributeTypeInt,
+		Required:    false,
+		Filterable:  true,
+		Description: "Image/video height in pixels",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "range",
+			Icon:     "Maximize2",
+			Group:    "media",
+			Label:    "Height",
+			Priority: 32,
+		},
+		Filter: FilterConfig{
+			SupportsRange: true,
+			Cacheable:     false,
+		},
 	}
 
 	// AttrDefGPS is the standard GPS attribute definition.
@@ -221,6 +362,109 @@ var (
 		Required:    false,
 		Filterable:  true,
 		Description: "GPS coordinates (latitude, longitude)",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "gps",
+			Icon:     "MapPin",
+			Group:    "metadata",
+			Label:    "GPS",
+			Priority: 25,
+		},
+		Filter: FilterConfig{
+			Cacheable: false,
+		},
+	}
+
+	// AttrDefLocation is the standard location attribute definition.
+	AttrDefLocation = AttributeDef{
+		Name:        AttrLocation,
+		Type:        AttributeTypeString,
+		Required:    false,
+		Filterable:  true,
+		Description: "Human-readable location name",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "input",
+			Icon:     "Map",
+			Group:    "metadata",
+			Label:    "Location",
+			Priority: 26,
+		},
+		Filter: FilterConfig{
+			SupportsEq:       true,
+			SupportsContains: true,
+			Cacheable:        true,
+			CacheTTL:         24 * time.Hour,
+		},
+	}
+
+	// AttrDefCamera is the standard camera attribute definition.
+	AttrDefCamera = AttributeDef{
+		Name:        AttrCamera,
+		Type:        AttributeTypeString,
+		Required:    false,
+		Filterable:  true,
+		Description: "Camera make/model",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "select",
+			Icon:     "Camera",
+			Group:    "media",
+			Label:    "Camera",
+			Priority: 33,
+		},
+		Filter: FilterConfig{
+			SupportsEq:  true,
+			SupportsNeq: true,
+			Cacheable:   true,
+			CacheTTL:    24 * time.Hour,
+		},
+	}
+
+	// AttrDefAlbum is the standard album attribute definition.
+	AttrDefAlbum = AttributeDef{
+		Name:        AttrAlbum,
+		Type:        AttributeTypeString,
+		Required:    false,
+		Filterable:  true,
+		Description: "Album name",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "select",
+			Icon:     "Album",
+			Group:    "provider-immich",
+			Label:    "Album",
+			Priority: 40,
+		},
+		Filter: FilterConfig{
+			SupportsEq:  true,
+			SupportsNeq: true,
+			Cacheable:   true,
+			CacheTTL:    24 * time.Hour,
+		},
+	}
+
+	// AttrDefArtist is the standard artist attribute definition.
+	AttrDefArtist = AttributeDef{
+		Name:        AttrArtist,
+		Type:        AttributeTypeString,
+		Required:    false,
+		Filterable:  true,
+		Description: "Artist name",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "select",
+			Icon:     "Music",
+			Group:    "media",
+			Label:    "Artist",
+			Priority: 41,
+		},
+		Filter: FilterConfig{
+			SupportsEq:  true,
+			SupportsNeq: true,
+			Cacheable:   true,
+			CacheTTL:    24 * time.Hour,
+		},
 	}
 
 	// AttrDefLabels is the standard labels attribute definition.
@@ -230,6 +474,19 @@ var (
 		Required:    false,
 		Filterable:  true,
 		Description: "Labels or tags",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "multiselect",
+			Icon:     "Tag",
+			Group:    "metadata",
+			Label:    "Labels",
+			Priority: 50,
+		},
+		Filter: FilterConfig{
+			SupportsEq:  true,
+			Cacheable:   true,
+			CacheTTL:    24 * time.Hour,
+		},
 	}
 
 	// AttrDefStatus is the standard status attribute definition.
@@ -239,6 +496,19 @@ var (
 		Required:    false,
 		Filterable:  true,
 		Description: "Status of the item",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "select",
+			Icon:     "Badge",
+			Group:    "metadata",
+			Label:    "Status",
+			Priority: 60,
+		},
+		Filter: FilterConfig{
+			SupportsEq:  true,
+			SupportsNeq: true,
+			Cacheable:   false,
+		},
 	}
 
 	// AttrDefPriority is the standard priority attribute definition.
@@ -248,5 +518,18 @@ var (
 		Required:    false,
 		Filterable:  true,
 		Description: "Priority level",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "select",
+			Icon:     "Flag",
+			Group:    "metadata",
+			Label:    "Priority",
+			Priority: 61,
+		},
+		Filter: FilterConfig{
+			SupportsEq:  true,
+			SupportsNeq: true,
+			Cacheable:   false,
+		},
 	}
 )

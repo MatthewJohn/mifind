@@ -563,6 +563,32 @@ func (m *Manager) GetFilterValues(ctx context.Context, filterName string) ([]Fil
 	return allOptions, nil
 }
 
+// GetAttributeExtensions returns all attribute extensions from providers.
+// This merges core attribute definitions with provider-specific extensions.
+// Provider extensions override core definitions for the same attribute name.
+func (m *Manager) GetAttributeExtensions(ctx context.Context) map[string]types.AttributeDef {
+	m.mu.RLock()
+	providerList := make([]Provider, 0, len(m.providers))
+	for _, inst := range m.providers {
+		if inst.Status.Connected {
+			providerList = append(providerList, inst.Provider)
+		}
+	}
+	m.mu.RUnlock()
+
+	extensions := make(map[string]types.AttributeDef)
+	for _, prov := range providerList {
+		if attrExt, ok := prov.(AttributeExtensionsProvider); ok {
+			provExts := attrExt.AttributeExtensions(ctx)
+			for name, attrDef := range provExts {
+				extensions[name] = attrDef
+			}
+		}
+	}
+
+	return extensions
+}
+
 // mergeFilterOptions merges filter options from two sources.
 func mergeFilterOptions(a, b []FilterOption) []FilterOption {
 	if len(a) == 0 {

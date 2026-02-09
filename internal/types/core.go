@@ -196,6 +196,52 @@ var TypeHierarchy = []TypeDefinition{
 	},
 }
 
+// TypeAttribute is the core "type" attribute definition.
+// This is always visible and uses a checkbox-group widget.
+var TypeAttribute = AttributeDef{
+	Name:        AttrType,
+	Type:        AttributeTypeString,
+	Required:    false,
+	Filterable:  true,
+	Description: "Entity type",
+	AlwaysVisible: true, // Always show type filter regardless of search results
+	UI: UIConfig{
+		Widget:   "checkbox-group",
+		Icon:     "FileType",
+		Group:    "core",
+		Label:    "Type",
+		Priority: 0, // Always first
+	},
+	Filter: FilterConfig{
+		SupportsEq:  true,
+		SupportsNeq: true,
+		Cacheable:   false, // Already in TypeCounts
+	},
+}
+
+// CoreAttributes defines standard core attribute definitions.
+// These provide default UI and Filter metadata for common attributes.
+var CoreAttributes = map[string]AttributeDef{
+	AttrType:      TypeAttribute,
+	AttrPath:      AttrDefPath,
+	AttrSize:      AttrDefSize,
+	AttrExtension: AttrDefExtension,
+	AttrMimeType:  AttrDefMimeType,
+	AttrModified:  AttrDefModified,
+	AttrCreated:   AttrDefCreated,
+	AttrDuration:  AttrDefDuration,
+	AttrWidth:     AttrDefWidth,
+	AttrHeight:    AttrDefHeight,
+	AttrGPS:       AttrDefGPS,
+	AttrLocation:  AttrDefLocation,
+	AttrCamera:    AttrDefCamera,
+	AttrAlbum:     AttrDefAlbum,
+	AttrArtist:    AttrDefArtist,
+	AttrLabels:    AttrDefLabels,
+	AttrStatus:    AttrDefStatus,
+	AttrPriority:  AttrDefPriority,
+}
+
 // RegisterCoreTypes registers all core type definitions in the given registry.
 func RegisterCoreTypes(registry *TypeRegistry) {
 	for _, typeDef := range TypeHierarchy {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
 
 // TypeRegistry manages the hierarchical type system for entities.
@@ -30,6 +31,48 @@ type TypeDefinition struct {
 	Description string
 }
 
+// UIConfig describes how to display an attribute in the UI.
+// This enables generic frontend rendering without hardcoded attribute knowledge.
+type UIConfig struct {
+	// Widget specifies the UI widget type for this attribute
+	// Values: "select", "multiselect", "input", "checkbox-group", "date-range", "range", "bool"
+	Widget string
+
+	// Icon is the icon name for frontend (e.g., lucide-react icon names)
+	Icon string
+
+	// Group is the display group for this attribute (e.g., "media", "file", "metadata", "core")
+	Group string
+
+	// Label is the display label (overrides Name)
+	Label string
+
+	// Priority is the display order (lower = first)
+	Priority int
+}
+
+// FilterConfig describes how filtering works for an attribute.
+// This enables generic filter handling without hardcoded attribute knowledge.
+type FilterConfig struct {
+	// SupportsEq indicates if equality filtering is supported
+	SupportsEq bool
+
+	// SupportsNeq indicates if inequality filtering is supported
+	SupportsNeq bool
+
+	// SupportsRange indicates if range filtering is supported
+	SupportsRange bool
+
+	// SupportsContains indicates if substring matching is supported
+	SupportsContains bool
+
+	// Cacheable indicates if filter values should be cached
+	Cacheable bool
+
+	// CacheTTL is the cache duration for filter values
+	CacheTTL time.Duration
+}
+
 // AttributeDef defines an attribute's type and constraints.
 type AttributeDef struct {
 	// Name is the attribute key name
@@ -46,6 +89,15 @@ type AttributeDef struct {
 
 	// Description is a human-readable description
 	Description string
+
+	// AlwaysVisible indicates if this filter should always be shown (even without results)
+	AlwaysVisible bool
+
+	// UI describes how to display this attribute in the frontend
+	UI UIConfig
+
+	// Filter describes how filtering works for this attribute
+	Filter FilterConfig
 }
 
 // AttributeType represents the type of an attribute value.
@@ -208,6 +260,22 @@ func (r *TypeRegistry) GetAll() map[string]*TypeDefinition {
 		result[k] = v
 	}
 	return result
+}
+
+// GetAllAttributes returns all attribute definitions from all registered types.
+// This is useful for building generic filter capabilities without hardcoded attribute names.
+func (r *TypeRegistry) GetAllAttributes() map[string]AttributeDef {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Collect all unique attributes from all types
+	attrs := make(map[string]AttributeDef)
+	for _, typeDef := range r.types {
+		for name, attr := range typeDef.Attributes {
+			attrs[name] = attr
+		}
+	}
+	return attrs
 }
 
 // List returns a slice of all type names.

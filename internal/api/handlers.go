@@ -154,6 +154,7 @@ type SearchResponse struct {
 	Duration     float64                             `json:"duration_ms"`
 	Filters      search.FilterResult                 `json:"filters,omitempty"`
 	Capabilities map[string]provider.FilterCapability `json:"capabilities,omitempty"`
+	Attributes   map[string]types.AttributeDef       `json:"attributes,omitempty"` // Full attribute definitions for generic UI rendering
 }
 
 // EntityWithScore is an entity with its ranking score.
@@ -243,6 +244,15 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 	// Include actual counts from search results
 	h.addTypeFilterCapabilities(capabilities, result.TypeCounts)
 
+	// Get all attribute definitions for generic UI rendering
+	attributes := h.typeRegistry.GetAllAttributes()
+
+	// Merge with provider-specific attribute extensions (provider extensions override core)
+	providerExtensions := h.manager.GetAttributeExtensions(r.Context())
+	for name, attrDef := range providerExtensions {
+		attributes[name] = attrDef
+	}
+
 	resp := SearchResponse{
 		Entities:     entities,
 		TotalCount:   totalCount, // Total count of all results (not just this page)
@@ -250,6 +260,7 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 		Duration:     float64(time.Since(start).Microseconds()) / 1000,
 		Filters:      filterResult,
 		Capabilities: capabilities,
+		Attributes:   attributes,
 	}
 
 	h.writeJSON(w, http.StatusOK, resp)
@@ -499,10 +510,20 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 		preObtainedValues = h.getPreObtainedFilterValues(r.Context(), capabilities)
 	}
 
+	// Get all attribute definitions for generic UI rendering
+	attributes := h.typeRegistry.GetAllAttributes()
+
+	// Merge with provider-specific attribute extensions (provider extensions override core)
+	providerExtensions := h.manager.GetAttributeExtensions(r.Context())
+	for name, attrDef := range providerExtensions {
+		attributes[name] = attrDef
+	}
+
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"capabilities": capabilities,
 		"filters":      filterResult,
 		"values":       preObtainedValues,
+		"attributes":   attributes,
 	})
 }
 
@@ -541,47 +562,64 @@ func (h *Handlers) getProviderCapabilitiesForResults(ctx context.Context, result
 }
 
 // addTypeFilterCapabilities ensures type filter capabilities are always available.
-// The entity type filter is a core feature that should be visible regardless of
-// which providers returned results (e.g., when filtering by person, filesystem
-// is skipped but we still want to show "file" as a type option).
+// This is now generic - it checks the attribute metadata for AlwaysVisible=true.
 // The typeCounts parameter is used to populate actual counts for each type.
 func (h *Handlers) addTypeFilterCapabilities(capabilities map[string]provider.FilterCapability, typeCounts map[string]int) {
-	// Get all registered types from the type registry
-	allTypes := h.typeRegistry.GetAll()
+	// Get all attribute definitions from the type registry
+	allAttrs := h.typeRegistry.GetAllAttributes()
 
-	// Build filter options from type registry with actual counts
-	typeOptions := make([]provider.FilterOption, 0, len(allTypes))
-	for _, t := range allTypes {
-		count := 0
-		if typeCounts != nil {
-			count = typeCounts[t.Name]
+	// Add always-visible attributes (like "type")
+	for attrName, attrDef := range allAttrs {
+		if !attrDef.AlwaysVisible {
+			continue
 		}
-		typeOptions = append(typeOptions, provider.FilterOption{
-			Value: t.Name,
-			Label: t.Name,
-			Count: count,
-		})
-	}
 
-	// Always add the type filter capability with all registered types
-	capabilities[types.AttrType] = provider.FilterCapability{
-		Type:             types.AttributeTypeString,
-		SupportsEq:       true,
-		SupportsNeq:      true,
-		SupportsContains: false,
-		Options:          typeOptions,
-		Description:      "Entity type",
+		// Special handling for "type" attribute to build options with counts
+		if attrName == types.AttrType {
+			allTypes := h.typeRegistry.GetAll()
+			typeOptions := make([]provider.FilterOption, 0, len(allTypes))
+			for _, t := range allTypes {
+				count := 0
+				if typeCounts != nil {
+					count = typeCounts[t.Name]
+				}
+				typeOptions = append(typeOptions, provider.FilterOption{
+					Value: t.Name,
+					Label: t.Name,
+					Count: count,
+				})
+			}
+
+			capabilities[attrName] = provider.FilterCapability{
+				Type:             attrDef.Type,
+				SupportsEq:       attrDef.Filter.SupportsEq,
+				SupportsNeq:      attrDef.Filter.SupportsNeq,
+				SupportsRange:    attrDef.Filter.SupportsRange,
+				SupportsContains: attrDef.Filter.SupportsContains,
+				Options:          typeOptions,
+				Description:      attrDef.Description,
+			}
+		}
 	}
 }
 
 // getPreObtainedFilterValues fetches pre-obtained filter values from providers.
-// Uses a 1-day in-memory cache to avoid repeated slow provider API calls.
+// Uses generic attribute metadata to determine which attributes are cacheable.
 // Cache misses are fetched asynchronously with a timeout to avoid blocking.
 func (h *Handlers) getPreObtainedFilterValues(_ context.Context, capabilities map[string]provider.FilterCapability) map[string][]provider.FilterOption {
 	result := make(map[string][]provider.FilterOption)
 
-	// Get values for each filter that has capabilities
+	// Get all attribute definitions to check cacheability
+	allAttrs := h.typeRegistry.GetAllAttributes()
+
+	// Get values for each filter that has capabilities and is cacheable
 	for filterName := range capabilities {
+		// Check if this attribute is cacheable (generic, not hardcoded)
+		attrDef, exists := allAttrs[filterName]
+		if !exists || !attrDef.Filter.Cacheable {
+			continue
+		}
+
 		// Check cache first
 		cachedValues, found := h.filterCache.Get(filterName)
 		if found {
@@ -607,7 +645,7 @@ func (h *Handlers) getPreObtainedFilterValues(_ context.Context, capabilities ma
 			continue
 		}
 
-		// Cache the values for 1 day
+		// Cache the values using attribute's cache TTL (generic, not hardcoded 24h)
 		if len(values) > 0 {
 			h.filterCache.Set(filterName, values)
 			result[filterName] = values
