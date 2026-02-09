@@ -148,10 +148,12 @@ type SearchRequest struct {
 
 // SearchResponse represents a search response.
 type SearchResponse struct {
-	Entities   []EntityWithScore `json:"entities"`
-	TotalCount int               `json:"total_count"`
-	TypeCounts map[string]int    `json:"type_counts"`
-	Duration   float64           `json:"duration_ms"`
+	Entities     []EntityWithScore                   `json:"entities"`
+	TotalCount   int                                 `json:"total_count"`
+	TypeCounts   map[string]int                      `json:"type_counts"`
+	Duration     float64                             `json:"duration_ms"`
+	Filters      search.FilterResult                 `json:"filters,omitempty"`
+	Capabilities map[string]provider.FilterCapability `json:"capabilities,omitempty"`
 }
 
 // EntityWithScore is an entity with its ranking score.
@@ -224,11 +226,29 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Extract filters and capabilities for the search results
+	// Get all entities for filter extraction (not just paginated)
+	allEntities := make([]types.Entity, len(result.Entities))
+	for i, ranked := range result.Entities {
+		allEntities[i] = ranked.Entity
+	}
+
+	// Extract filters from search results
+	filterResult := h.filters.ExtractFilters(allEntities, query.Type)
+
+	// Get capabilities from providers that returned results
+	capabilities := h.getProviderCapabilitiesForResults(r.Context(), response.Results)
+
+	// Always include type filter capabilities from type registry
+	h.addTypeFilterCapabilities(capabilities)
+
 	resp := SearchResponse{
-		Entities:   entities,
-		TotalCount: totalCount, // Total count of all results (not just this page)
-		TypeCounts: result.TypeCounts,
-		Duration:   float64(time.Since(start).Microseconds()) / 1000,
+		Entities:     entities,
+		TotalCount:   totalCount, // Total count of all results (not just this page)
+		TypeCounts:   result.TypeCounts,
+		Duration:     float64(time.Since(start).Microseconds()) / 1000,
+		Filters:      filterResult,
+		Capabilities: capabilities,
 	}
 
 	h.writeJSON(w, http.StatusOK, resp)
