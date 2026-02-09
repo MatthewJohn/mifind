@@ -3,9 +3,11 @@ package immich
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/yourname/mifind/internal/provider"
 	"github.com/yourname/mifind/internal/types"
 )
@@ -38,6 +40,11 @@ func NewProvider() *Provider {
 					Type:        "bool",
 					Required:    false,
 					Description: "Skip TLS certificate verification (for self-signed certificates)",
+				},
+				"debug": {
+					Type:        "bool",
+					Required:    false,
+					Description: "Enable debug logging for Immich API calls",
 				},
 			}),
 		}),
@@ -76,8 +83,23 @@ func (p *Provider) Initialize(ctx context.Context, config map[string]any) error 
 		insecureSkipVerify = skipVerify
 	}
 
+	// Get debug option (optional, defaults to false)
+	debug := false
+	if dbg, ok := config["debug"].(bool); ok {
+		debug = dbg
+	}
+
+	// Create logger if debug is enabled
+	var logger *zerolog.Logger
+	if debug {
+		log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: "15:04:05"}).
+			With().Timestamp().Str("component", "immich").Logger()
+		logger = &log
+		log.Info().Bool("debug", true).Msg("Immich provider initialized with debug logging")
+	}
+
 	// Create client
-	p.client = NewClient(url, apiKey, insecureSkipVerify)
+	p.client = NewClientWithLogger(url, apiKey, insecureSkipVerify, logger)
 
 	// Test connection
 	if err := p.client.Health(ctx); err != nil {

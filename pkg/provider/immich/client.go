@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 // Client is an HTTP client for the Immich API.
@@ -16,14 +18,21 @@ type Client struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
+	logger     *zerolog.Logger
 }
 
 // NewClient creates a new Immich API client.
 // If insecureSkipVerify is true, TLS certificate verification will be skipped.
 func NewClient(baseURL, apiKey string, insecureSkipVerify bool) *Client {
+	return NewClientWithLogger(baseURL, apiKey, insecureSkipVerify, nil)
+}
+
+// NewClientWithLogger creates a new Immich API client with debug logging.
+func NewClientWithLogger(baseURL, apiKey string, insecureSkipVerify bool, logger *zerolog.Logger) *Client {
 	client := &Client{
 		baseURL: baseURL,
 		apiKey:  apiKey,
+		logger:  logger,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -43,6 +52,13 @@ func NewClient(baseURL, apiKey string, insecureSkipVerify bool) *Client {
 // Search performs a search query against the Immich API.
 // Note: The Immich search API only returns assets and albums, not people.
 func (c *Client) Search(ctx context.Context, query string, limit int) (*SearchResponse, error) {
+	if c.logger != nil {
+		c.logger.Debug().
+			Str("query", query).
+			Int("limit", limit).
+			Msg("Immich: Search request")
+	}
+
 	// Immich uses /api/search/metadata for smart search with metadata
 	url := fmt.Sprintf("%s/api/search/metadata", c.baseURL)
 
@@ -57,6 +73,16 @@ func (c *Client) Search(ctx context.Context, query string, limit int) (*SearchRe
 	var result SearchResponse
 	if err := c.doPost(ctx, url, reqBody, &result); err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
+	}
+
+	if c.logger != nil {
+		assetCount := 0
+		if result.Assets != nil {
+			assetCount = len(result.Assets.Items)
+		}
+		c.logger.Debug().
+			Int("assets", assetCount).
+			Msg("Immich: Search response")
 	}
 
 	return &result, nil
@@ -133,6 +159,13 @@ func (c *Client) ListPeople(ctx context.Context, limit int) ([]Person, error) {
 		size = 1000 // Use the API max
 	}
 
+	if c.logger != nil {
+		c.logger.Debug().
+			Int("limit", limit).
+			Int("size", size).
+			Msg("Immich: ListPeople request")
+	}
+
 	// Immich uses 'size' not 'pageSize' for people endpoint
 	url := fmt.Sprintf("%s/api/people?page=1&size=%d", c.baseURL, size)
 
@@ -144,6 +177,14 @@ func (c *Client) ListPeople(ctx context.Context, limit int) ([]Person, error) {
 
 	if err := c.doGet(ctx, url, &result); err != nil {
 		return nil, fmt.Errorf("list people failed: %w", err)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug().
+			Int("total", result.Total).
+			Int("count", result.Count).
+			Int("returned", len(result.Items)).
+			Msg("Immich: ListPeople response")
 	}
 
 	return result.Items, nil
