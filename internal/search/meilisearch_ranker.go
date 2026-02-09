@@ -176,6 +176,49 @@ func (r *MeilisearchRanker) buildSearchRequest(query SearchQuery) *meilisearch.S
 	return req
 }
 
+// buildSearchRequestWithIDs constructs a Meilisearch search request that filters
+// by entity IDs, ensuring only results from the current search are returned.
+// This allows concurrent searches without clearing the index.
+func (r *MeilisearchRanker) buildSearchRequestWithIDs(query SearchQuery, entities []EntityWithProvider) *meilisearch.SearchRequest {
+	req := &meilisearch.SearchRequest{
+		Limit:  int64(query.Limit),
+		Offset: int64(query.Offset),
+	}
+
+	// Build filter parts starting with entity ID filter
+	filterParts := []string{}
+
+	// Add entity ID filter to ensure we only get results from current search
+	if len(entities) > 0 {
+		idFilters := make([]string, 0, len(entities))
+		for _, entity := range entities {
+			idFilters = append(idFilters, fmt.Sprintf("id = \"%s\"", entity.Entity.ID))
+		}
+		// Use OR for entity IDs (any of these IDs)
+		if len(idFilters) > 0 {
+			filterParts = append(filterParts, "("+strings.Join(idFilters, " OR ")+")")
+		}
+	}
+
+	// Type filter (always available)
+	if query.Type != "" {
+		filterParts = append(filterParts, fmt.Sprintf("type = \"%s\"", query.Type))
+	}
+
+	// Provider filter (always available)
+	if len(query.TypeWeights) == 1 {
+		for provider := range query.TypeWeights {
+			filterParts = append(filterParts, fmt.Sprintf("provider = \"%s\"", provider))
+		}
+	}
+
+	if len(filterParts) > 0 {
+		req.Filter = strings.Join(filterParts, " AND ")
+	}
+
+	return req
+}
+
 // buildFilterPart builds a single filter part for Meilisearch.
 func (r *MeilisearchRanker) buildFilterPart(key string, value any) string {
 	switch v := value.(type) {
