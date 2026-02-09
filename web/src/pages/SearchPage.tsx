@@ -31,10 +31,8 @@ export function SearchPage() {
 
   // Build search request from store state (only when search is triggered)
   const searchRequest: SearchRequest | null = useMemo(() => {
-    if (!searchTriggered) return null
-
-    // Mark that we've performed at least one search
-    hasEverSearched.current = true
+    // Only build request after user has triggered search at least once
+    if (!hasEverSearched.current && !searchTriggered) return null
 
     const request: SearchRequest = {
       query: query.trim(), // Allow empty queries
@@ -61,19 +59,16 @@ export function SearchPage() {
       ]
     }
 
-    // Note: We DON'T reset the trigger here to avoid infinite re-renders
-    // The trigger will be reset after the request is "consumed" by the search hook
-
     return request
   }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters])
 
-  // Reset the trigger after the search request is created
-  // This ensures the request object is stable during the render
+  // Handle search trigger - mark that we've searched and reset trigger
   useEffect(() => {
-    if (searchRequest !== null) {
+    if (searchTriggered) {
+      hasEverSearched.current = true
       resetSearchTrigger()
     }
-  }, [searchRequest, resetSearchTrigger])
+  }, [searchTriggered, resetSearchTrigger])
 
   const { data, isLoading, error } = useSearch(searchRequest)
 

@@ -161,8 +161,14 @@ func (r *MeilisearchRanker) entityToDocument(entity EntityWithProvider) map[stri
 // because provider-specific attributes (like person, album) are not
 // pre-configured as filterable in Meilisearch.
 func (r *MeilisearchRanker) buildSearchRequest(query SearchQuery) *meilisearch.SearchRequest {
+	// Use a large limit to get all results (pagination is applied after ranking)
+	limit := query.Limit
+	if limit == 0 {
+		limit = 10000 // Get all results, will paginate in Go
+	}
+
 	req := &meilisearch.SearchRequest{
-		Limit:  int64(query.Limit),
+		Limit:  int64(limit),
 		Offset: int64(query.Offset),
 	}
 
@@ -195,8 +201,14 @@ func (r *MeilisearchRanker) buildSearchRequest(query SearchQuery) *meilisearch.S
 // by entity IDs, ensuring only results from the current search are returned.
 // This allows concurrent searches without clearing the index.
 func (r *MeilisearchRanker) buildSearchRequestWithIDs(query SearchQuery, entities []EntityWithProvider) *meilisearch.SearchRequest {
+	// Use a large limit to get all results (pagination is applied after ranking)
+	limit := query.Limit
+	if limit == 0 {
+		limit = 10000 // Get all results, will paginate in Go
+	}
+
 	req := &meilisearch.SearchRequest{
-		Limit:  int64(query.Limit),
+		Limit:  int64(limit),
 		Offset: int64(query.Offset),
 	}
 
