@@ -212,6 +212,11 @@ func (m *MockProvider) SupportsIncremental() bool {
 	return true
 }
 
+// SupportsRelevanceScore returns false - mock provider doesn't return relevance scores.
+func (m *MockProvider) SupportsRelevanceScore() bool {
+	return false
+}
+
 // Shutdown is a no-op for mock provider.
 func (m *MockProvider) Shutdown(ctx context.Context) error {
 	return nil

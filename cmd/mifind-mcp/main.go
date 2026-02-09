@@ -68,7 +68,11 @@ func main() {
 	}
 
 	// Initialize search components
-	federator := search.NewFederator(providerManager, &logger, 30*time.Second)
+	// Use in-memory ranking strategy for MCP server
+	rankingConfig := search.DefaultRankingConfig()
+	rankingStrategy := search.NewInMemoryRanker(rankingConfig)
+
+	federator := search.NewFederator(providerManager, rankingStrategy, &logger, 30*time.Second)
 	ranker := search.NewRanker()
 	filters := search.NewFilters(typeRegistry)
 	relationships := search.NewRelationships(providerManager, &logger)

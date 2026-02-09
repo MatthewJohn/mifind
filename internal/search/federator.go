@@ -14,17 +14,19 @@ import (
 // Federator broadcasts search queries to multiple providers and aggregates results.
 type Federator struct {
 	manager *provider.Manager
+	ranker  RankingStrategy
 	logger  *zerolog.Logger
 	timeout time.Duration
 }
 
 // NewFederator creates a new search federator.
-func NewFederator(manager *provider.Manager, logger *zerolog.Logger, timeout time.Duration) *Federator {
+func NewFederator(manager *provider.Manager, ranker RankingStrategy, logger *zerolog.Logger, timeout time.Duration) *Federator {
 	if timeout == 0 {
 		timeout = 30 * time.Second
 	}
 	return &Federator{
 		manager: manager,
+		ranker:  ranker,
 		logger:  logger,
 		timeout: timeout,
 	}
@@ -41,11 +43,12 @@ type FederatedResult struct {
 
 // FederatedResponse contains aggregated results from all providers.
 type FederatedResponse struct {
-	Results    []FederatedResult
-	TotalCount int
-	TypeCounts map[string]int
-	HasErrors  bool
-	Duration   time.Duration
+	Results        []FederatedResult
+	RankedEntities []EntityWithProvider
+	TotalCount     int
+	TypeCounts     map[string]int
+	HasErrors      bool
+	Duration       time.Duration
 }
 
 // Search broadcasts a search query to all providers and aggregates results.
@@ -62,11 +65,12 @@ func (f *Federator) Search(ctx context.Context, query SearchQuery) FederatedResp
 	// If no providers, return empty response
 	if len(providerNames) == 0 {
 		return FederatedResponse{
-			Results:    []FederatedResult{},
-			TotalCount: 0,
-			TypeCounts: make(map[string]int),
-			HasErrors:  false,
-			Duration:   time.Since(start),
+			Results:        []FederatedResult{},
+			RankedEntities: []EntityWithProvider{},
+			TotalCount:     0,
+			TypeCounts:     make(map[string]int),
+			HasErrors:      false,
+			Duration:       time.Since(start),
 		}
 	}
 
@@ -92,6 +96,7 @@ func (f *Federator) Search(ctx context.Context, query SearchQuery) FederatedResp
 
 	// Aggregate results
 	var allResults []FederatedResult
+	var allEntities []EntityWithProvider
 	totalCount := 0
 	typeCounts := make(map[string]int)
 	hasErrors := false
@@ -99,6 +104,14 @@ func (f *Federator) Search(ctx context.Context, query SearchQuery) FederatedResp
 	for result := range results {
 		allResults = append(allResults, result)
 		totalCount += len(result.Entities)
+
+		// Collect entities for ranking
+		for _, entity := range result.Entities {
+			allEntities = append(allEntities, EntityWithProvider{
+				Entity:   entity,
+				Provider: result.Provider,
+			})
+		}
 
 		// Aggregate type counts
 		for typeName, count := range result.TypeCounts {
@@ -110,12 +123,32 @@ func (f *Federator) Search(ctx context.Context, query SearchQuery) FederatedResp
 		}
 	}
 
+	// Rank entities using the configured ranking strategy
+	rankedEntities := allEntities // Default: use unranked
+	if f.ranker != nil && len(allEntities) > 0 {
+		ranked, err := f.ranker.Rank(ctx, allEntities, query)
+		if err != nil {
+			f.logger.Warn().Err(err).Msg("Ranking failed, returning unsorted results")
+		} else {
+			// Convert RankedEntity back to FederatedResult format
+			// For now, we'll store ranked entities in a new field
+			rankedEntities = make([]EntityWithProvider, len(ranked))
+			for i, re := range ranked {
+				rankedEntities[i] = EntityWithProvider{
+					Entity:   re.Entity,
+					Provider: re.Provider,
+				}
+			}
+		}
+	}
+
 	return FederatedResponse{
-		Results:    allResults,
-		TotalCount: totalCount,
-		TypeCounts: typeCounts,
-		HasErrors:  hasErrors,
-		Duration:   time.Since(start),
+		Results:        allResults,
+		RankedEntities: rankedEntities,
+		TotalCount:     totalCount,
+		TypeCounts:     typeCounts,
+		HasErrors:      hasErrors,
+		Duration:       time.Since(start),
 	}
 }
 

@@ -123,7 +123,13 @@ func main() {
 	}
 
 	// Initialize search components
-	federator := search.NewFederator(providerManager, &logger, 30*time.Second)
+	rankingStrategy, err := createRankingStrategy(config.Ranking, &logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to create ranking strategy")
+	}
+	logger.Info().Str("strategy", rankingStrategy.Name()).Msg("Ranking strategy initialized")
+
+	federator := search.NewFederator(providerManager, rankingStrategy, &logger, 30*time.Second)
 	ranker := search.NewRanker()
 	filters := search.NewFilters(typeRegistry)
 	relationships := search.NewRelationships(providerManager, &logger)
@@ -182,6 +188,7 @@ func main() {
 type Config struct {
 	HTTPPort            int                        `mapstructure:"http_port"`
 	UI                  UIConfig                   `mapstructure:"ui"`
+	Ranking             search.RankingConfig       `mapstructure:"ranking"`
 	MockEnabled         bool                       `mapstructure:"mock_enabled"`
 	MockEntityCount     int                        `mapstructure:"mock_entity_count"`
 	FilesystemProviders []FilesystemProviderConfig `mapstructure:"filesystem_providers"`
@@ -295,5 +302,23 @@ func corsMiddleware() func(http.Handler) http.Handler {
 
 			next.ServeHTTP(w, r)
 		})
+	}
+}
+
+// createRankingStrategy creates a ranking strategy based on configuration.
+func createRankingStrategy(config search.RankingConfig, logger *zerolog.Logger) (search.RankingStrategy, error) {
+	switch config.Strategy {
+	case "meilisearch":
+		ranker, err := search.NewMeilisearchRanker(config, logger)
+		if err != nil {
+			logger.Warn().Err(err).Msg("Failed to create Meilisearch ranker, falling back to in-memory")
+			return search.NewInMemoryRanker(config), nil
+		}
+		return ranker, nil
+	case "in-memory", "":
+		return search.NewInMemoryRanker(config), nil
+	default:
+		logger.Warn().Str("strategy", config.Strategy).Msg("Unknown ranking strategy, using in-memory")
+		return search.NewInMemoryRanker(config), nil
 	}
 }

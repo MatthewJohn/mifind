@@ -9,6 +9,30 @@ ui:
   dev_url: "http://localhost:5173"  # Vite dev server URL
   index_path: ""         # Custom path to index.html (default: embedded)
 
+# Ranking configuration
+ranking:
+  strategy: "in-memory"  # "in-memory" or "meilisearch"
+
+  # Provider weights (boost results from specific providers)
+  provider_weights:
+    # immich: 1.0
+    # filesystem: 1.0
+
+  # Type weights (boost results of specific types)
+  type_weights:
+    # "file.media.image": 1.2
+    # "media.asset.photo": 1.5
+
+  # Meilisearch configuration (only used when strategy is "meilisearch")
+  meilisearch:
+    url: "http://localhost:7700"
+    index_uid: "mifind_entities"
+    api_key: ""  # Leave empty if no authentication
+
+    cleanup:
+      enabled: false
+      interval: "24h"  # Full rebuild every 24 hours
+
 # Mock provider for testing
 mock_enabled: true
 mock_entity_count: 100

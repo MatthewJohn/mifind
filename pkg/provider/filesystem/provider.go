@@ -273,6 +273,11 @@ func (p *Provider) SupportsIncremental() bool {
 	return true
 }
 
+// SupportsRelevanceScore returns false - filesystem provider doesn't return relevance scores.
+func (p *Provider) SupportsRelevanceScore() bool {
+	return false
+}
+
 // Shutdown shuts down the filesystem provider.
 func (p *Provider) Shutdown(ctx context.Context) error {
 	// No cleanup needed

@@ -215,6 +215,11 @@ type Provider interface {
 	// Returns a map of attribute name to FilterCapability.
 	FilterCapabilities(ctx context.Context) (map[string]FilterCapability, error)
 
+	// SupportsRelevanceScore returns true if this provider returns relevance scores
+	// for search results. Providers that return scores should store them in the
+	// entity attributes with key "_score" so the ranker can use them.
+	SupportsRelevanceScore() bool
+
 	// Shutdown gracefully shuts down the provider.
 	// Called when the provider is being unregistered or the service is stopping.
 	Shutdown(ctx context.Context) error
@@ -515,6 +520,12 @@ func (b *BaseProvider) DiscoverSince(ctx context.Context, since time.Time) ([]ty
 // Providers that support filtering should override this to declare their capabilities.
 func (b *BaseProvider) FilterCapabilities(ctx context.Context) (map[string]FilterCapability, error) {
 	return make(map[string]FilterCapability), nil
+}
+
+// SupportsRelevanceScore returns false by default.
+// Providers that return relevance scores should override this.
+func (b *BaseProvider) SupportsRelevanceScore() bool {
+	return false
 }
 
 // Shutdown is a no-op by default.

@@ -297,6 +297,11 @@ func (p *Provider) SupportsIncremental() bool {
 	return false
 }
 
+// SupportsRelevanceScore returns true - Immich may return relevance scores from search.
+func (p *Provider) SupportsRelevanceScore() bool {
+	return true
+}
+
 // Shutdown shuts down the Immich provider.
 func (p *Provider) Shutdown(ctx context.Context) error {
 	// No cleanup needed
