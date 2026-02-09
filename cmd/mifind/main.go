@@ -123,7 +123,7 @@ func main() {
 	}
 
 	// Initialize search components
-	rankingStrategy, err := createRankingStrategy(config.Ranking, &logger)
+	rankingStrategy, err := createRankingStrategy(config.Ranking, &logger, typeRegistry)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create ranking strategy")
 	}
@@ -306,10 +306,10 @@ func corsMiddleware() func(http.Handler) http.Handler {
 }
 
 // createRankingStrategy creates a ranking strategy based on configuration.
-func createRankingStrategy(config search.RankingConfig, logger *zerolog.Logger) (search.RankingStrategy, error) {
+func createRankingStrategy(config search.RankingConfig, logger *zerolog.Logger, typeRegistry *types.TypeRegistry) (search.RankingStrategy, error) {
 	switch config.Strategy {
 	case "meilisearch":
-		ranker, err := search.NewMeilisearchRanker(config, logger)
+		ranker, err := search.NewMeilisearchRanker(config, logger, typeRegistry)
 		if err != nil {
 			logger.Warn().Err(err).Msg("Failed to create Meilisearch ranker, falling back to in-memory")
 			return search.NewInMemoryRanker(config), nil

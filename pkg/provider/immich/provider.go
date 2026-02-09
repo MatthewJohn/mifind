@@ -566,6 +566,95 @@ func (p *Provider) FilterCapabilities(ctx context.Context) (map[string]provider.
 	}, nil
 }
 
+// AttributeExtensions returns provider-specific attribute definitions.
+// Extends core attributes (album, person) with provider-level metadata for Immich.
+// Location filters (city, state, country) are also provider-level for Immich.
+func (p *Provider) AttributeExtensions(ctx context.Context) map[string]types.AttributeDef {
+	return map[string]types.AttributeDef{
+		// Extend core person attribute with provider-specific UI/behavior
+		types.AttrPerson: {
+			Name:       types.AttrPerson,
+			Type:       types.AttributeTypeString,
+			Filterable: true,
+			Description: "Person (detected faces) - filter handled by Immich API",
+			UI: types.UIConfig{
+				Widget:   "multiselect",
+				Icon:     "Users",
+				Group:    "provider-immich",
+				Label:    "People",
+				Priority: 10,
+			},
+			Filter: types.FilterConfig{
+				SupportsEq:     true,
+				Cacheable:      true,
+				CacheTTL:       24 * time.Hour,
+				ProviderLevel:  true, // Filtered by Immich API, not entity attributes
+			},
+		},
+		// Location filters - provider-level for Immich
+		types.AttrLocationCity: {
+			Name:       types.AttrLocationCity,
+			Type:       types.AttributeTypeString,
+			Filterable: true,
+			Description: "City name - filter handled by Immich API",
+			UI: types.UIConfig{
+				Widget:   "input",
+				Icon:     "MapPin",
+				Group:    "provider-immich",
+				Label:    "City",
+				Priority: 12,
+			},
+			Filter: types.FilterConfig{
+				SupportsEq:       true,
+				SupportsContains: true,
+				Cacheable:        true,
+				CacheTTL:         24 * time.Hour,
+				ProviderLevel:    true, // Filtered by Immich API, not entity attributes
+			},
+		},
+		types.AttrLocationState: {
+			Name:       types.AttrLocationState,
+			Type:       types.AttributeTypeString,
+			Filterable: true,
+			Description: "State/Province name - filter handled by Immich API",
+			UI: types.UIConfig{
+				Widget:   "input",
+				Icon:     "MapPin",
+				Group:    "provider-immich",
+				Label:    "State",
+				Priority: 13,
+			},
+			Filter: types.FilterConfig{
+				SupportsEq:       true,
+				SupportsContains: true,
+				Cacheable:        true,
+				CacheTTL:         24 * time.Hour,
+				ProviderLevel:    true, // Filtered by Immich API, not entity attributes
+			},
+		},
+		types.AttrLocationCountry: {
+			Name:       types.AttrLocationCountry,
+			Type:       types.AttributeTypeString,
+			Filterable: true,
+			Description: "Country name - filter handled by Immich API",
+			UI: types.UIConfig{
+				Widget:   "input",
+				Icon:     "Map",
+				Group:    "provider-immich",
+				Label:    "Country",
+				Priority: 14,
+			},
+			Filter: types.FilterConfig{
+				SupportsEq:       true,
+				SupportsContains: true,
+				Cacheable:        true,
+				CacheTTL:         24 * time.Hour,
+				ProviderLevel:    true, // Filtered by Immich API, not entity attributes
+			},
+		},
+	}
+}
+
 // ptrFloat64 returns a pointer to a float64.
 func ptrFloat64(v float64) *float64 {
 	return &v

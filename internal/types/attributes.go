@@ -62,6 +62,7 @@ const (
 	// Face/person attributes (Immich, etc.)
 	AttrFaces       = "faces"        // Number of faces detected
 	AttrPeople      = "people"       // List of people IDs/names
+	AttrPerson      = "person"       // Person filter (singular, for filtering)
 	AttrFaceRegions = "face_regions" // Face detection regions
 
 	// Smart search/ML attributes
@@ -477,15 +478,39 @@ var (
 		UI: UIConfig{
 			Widget:   "select",
 			Icon:     "Album",
-			Group:    "provider-immich",
+			Group:    "media",
 			Label:    "Album",
 			Priority: 40,
 		},
 		Filter: FilterConfig{
-			SupportsEq:  true,
-			SupportsNeq: true,
-			Cacheable:   true,
-			CacheTTL:    24 * time.Hour,
+			SupportsEq:     true,
+			SupportsNeq:    true,
+			Cacheable:      true,
+			CacheTTL:       24 * time.Hour,
+			ProviderLevel:  true, // Filtered by provider APIs (e.g., Immich, Google Photos)
+		},
+	}
+
+	// AttrDefPerson is the standard person attribute definition.
+	AttrDefPerson = AttributeDef{
+		Name:          AttrPeople,
+		Type:          AttributeTypeStringSlice,
+		Required:      false,
+		Filterable:    true,
+		Description:   "People detected in media (faces)",
+		AlwaysVisible: false,
+		UI: UIConfig{
+			Widget:   "multiselect",
+			Icon:     "Users",
+			Group:    "media",
+			Label:    "People",
+			Priority: 41,
+		},
+		Filter: FilterConfig{
+			SupportsEq:     true,
+			Cacheable:      true,
+			CacheTTL:       24 * time.Hour,
+			ProviderLevel:  true, // Filtered by provider APIs (e.g., Immich, Google Photos)
 		},
 	}
 

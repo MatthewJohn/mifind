@@ -71,6 +71,12 @@ type FilterConfig struct {
 
 	// CacheTTL is the cache duration for filter values
 	CacheTTL time.Duration
+
+	// ProviderLevel indicates if this filter is handled by provider APIs
+	// rather than being stored as entity attributes.
+	// Provider-level filters (e.g., Immich person/album) are passed to the provider
+	// during search and don't exist as entity.Attributes keys.
+	ProviderLevel bool
 }
 
 // AttributeDef defines an attribute's type and constraints.

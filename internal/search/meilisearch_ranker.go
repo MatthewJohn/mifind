@@ -15,13 +15,14 @@ import (
 // MeilisearchRanker provides Meilisearch-based ranking with real-time indexing.
 // This ranker indexes entities on every search and uses Meilisearch's BM25 ranking.
 type MeilisearchRanker struct {
-	client *searchpkg.Client
-	config RankingConfig
-	logger *zerolog.Logger
+	client        *searchpkg.Client
+	config        RankingConfig
+	logger        *zerolog.Logger
+	typeRegistry  *types.TypeRegistry
 }
 
 // NewMeilisearchRanker creates a new Meilisearch-based ranker.
-func NewMeilisearchRanker(config RankingConfig, logger *zerolog.Logger) (*MeilisearchRanker, error) {
+func NewMeilisearchRanker(config RankingConfig, logger *zerolog.Logger, typeRegistry *types.TypeRegistry) (*MeilisearchRanker, error) {
 	client, err := searchpkg.NewClient(
 		config.Meilisearch.URL,
 		config.Meilisearch.IndexUID,
@@ -33,9 +34,10 @@ func NewMeilisearchRanker(config RankingConfig, logger *zerolog.Logger) (*Meilis
 	}
 
 	return &MeilisearchRanker{
-		client: client,
-		config: config,
-		logger: logger,
+		client:       client,
+		config:       config,
+		logger:       logger,
+		typeRegistry: typeRegistry,
 	}, nil
 }
 
@@ -429,17 +431,16 @@ func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchRespons
 }
 
 // hasProviderLevelFilters checks if the query contains provider-level filters
-// that are handled by providers (person, album, location).
+// that are handled by providers (marked with ProviderLevel in attribute metadata).
 func (r *MeilisearchRanker) hasProviderLevelFilters(filters map[string]any) bool {
-	providerLevelFilters := map[string]bool{
-		"person":   true,
-		"album":    true,
-		"location": true,
-	}
+	// Get all attribute definitions to check which are provider-level
+	allAttrs := r.typeRegistry.GetAllAttributes()
 
 	for key := range filters {
-		if providerLevelFilters[key] {
-			return true
+		if attrDef, exists := allAttrs[key]; exists {
+			if attrDef.Filter.ProviderLevel {
+				return true
+			}
 		}
 	}
 	return false
@@ -447,25 +448,21 @@ func (r *MeilisearchRanker) hasProviderLevelFilters(filters map[string]any) bool
 
 // applyAttributeFilters applies custom attribute filters to entities in Go.
 // This is done before indexing so Meilisearch only sees relevant entities.
-// NOTE: Provider-level filters (person, album, location) are handled by providers
-// and should NOT be applied here since they don't exist as entity attributes.
+// NOTE: Provider-level filters (marked with ProviderLevel in attribute metadata)
+// are handled by providers and should NOT be applied here since they don't exist as entity attributes.
 func (r *MeilisearchRanker) applyAttributeFilters(entities []EntityWithProvider, query SearchQuery) []EntityWithProvider {
 	if len(query.Filters) == 0 {
 		return entities
 	}
 
-	// Provider-level filters that are handled by providers, not entity attributes
-	// These should NOT be filtered at the entity level
-	providerLevelFilters := map[string]bool{
-		"person":    true,
-		"album":     true,
-		"location":  true,
-	}
+	// Get all attribute definitions to check which are provider-level
+	allAttrs := r.typeRegistry.GetAllAttributes()
 
 	// Build a new filters map excluding provider-level filters
 	entityFilters := make(map[string]any)
 	for key, val := range query.Filters {
-		if !providerLevelFilters[key] {
+		if attrDef, exists := allAttrs[key]; !exists || !attrDef.Filter.ProviderLevel {
+			// Only include filters that are NOT provider-level
 			entityFilters[key] = val
 		}
 	}
