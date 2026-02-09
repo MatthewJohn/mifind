@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -689,7 +690,40 @@ func (h *Handlers) ProxyThumbnail(w http.ResponseWriter, r *http.Request) {
 
 // proxyThumbnailByID looks up an entity and proxies its thumbnail.
 func (h *Handlers) proxyThumbnailByID(w http.ResponseWriter, r *http.Request, entityID string) {
-	// Hydrate the entity to get its attributes
+	// Parse entity ID to get provider name
+	parts := strings.Split(entityID, ":")
+	if len(parts) != 3 {
+		h.writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid entity ID format: %s", entityID))
+		return
+	}
+	providerName := parts[0]
+
+	// Check if the provider implements ThumbnailProvider
+	prov, ok := h.manager.Get(providerName)
+	if !ok {
+		h.writeError(w, http.StatusNotFound, fmt.Sprintf("provider not found: %s", providerName))
+		return
+	}
+
+	if thumbnailProvider, ok := prov.(provider.ThumbnailProvider); ok {
+		// Use the provider's authenticated thumbnail fetching
+		data, contentType, err := thumbnailProvider.GetThumbnail(r.Context(), entityID)
+		if err != nil {
+			h.writeError(w, http.StatusBadGateway, fmt.Sprintf("failed to fetch thumbnail: %v", err))
+			return
+		}
+
+		// Set headers and write response
+		if contentType != "" {
+			w.Header().Set("Content-Type", contentType)
+		}
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+		return
+	}
+
+	// Fall back to hydrating entity and getting thumbnail URL from attributes
 	entity, err := h.manager.Hydrate(r.Context(), entityID)
 	if err != nil {
 		if err == provider.ErrNotFound {

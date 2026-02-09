@@ -111,6 +111,15 @@ type FilterValuesProvider interface {
 	FilterValues(ctx context.Context, filterName string) ([]FilterOption, error)
 }
 
+// ThumbnailProvider is an optional interface that providers can implement
+// to provide authenticated thumbnail fetching. This is useful for providers
+// that require authentication to access media (e.g., Immich).
+type ThumbnailProvider interface {
+	// GetThumbnail fetches a thumbnail for the given entity ID.
+	// Returns the image data, content type, and any error that occurred.
+	GetThumbnail(ctx context.Context, id string) ([]byte, string, error)
+}
+
 // FilterCapability describes how a provider supports filtering on a specific attribute.
 // This is runtime-discoverable and provider-specific, allowing each provider to declare
 // which attributes can be filtered on and how.

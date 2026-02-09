@@ -3,6 +3,8 @@ package immich
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -635,4 +637,59 @@ func (p *Provider) personToEntity(person Person) types.Entity {
 	entity.AddSearchToken(displayName)
 
 	return entity
+}
+
+// GetThumbnail fetches a thumbnail for an Immich entity using the authenticated client.
+// Implements the provider.ThumbnailProvider interface.
+func (p *Provider) GetThumbnail(ctx context.Context, id string) ([]byte, string, error) {
+	// Parse the entity ID to validate format
+	// Format: immich:instanceID:resourceID
+	parts := strings.Split(id, ":")
+	if len(parts) != 3 {
+		return nil, "", fmt.Errorf("invalid entity ID format: %s", id)
+	}
+
+	entity, err := p.Hydrate(ctx, id)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to hydrate entity: %w", err)
+	}
+
+	// Get the original Immich thumbnail URL from private attributes
+	thumbnailURL, ok := entity.Attributes["_immich_thumbnail_url"].(string)
+	if !ok || thumbnailURL == "" {
+		return nil, "", fmt.Errorf("entity has no thumbnail URL")
+	}
+
+	// Use the authenticated Immich client to fetch the thumbnail
+	req, err := p.client.newRequest(ctx, "GET", thumbnailURL, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Don't require JSON response for thumbnails
+	req.Header.Del("Accept")
+
+	resp, err := p.client.httpClient.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to fetch thumbnail: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+
+	// Read the image data
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Get content type
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "image/jpeg"
+	}
+
+	return data, contentType, nil
 }
