@@ -17,18 +17,6 @@ function getTypeIcon(type: string) {
   return FileText
 }
 
-// Transform thumbnail URL to use the mifind proxy endpoint
-// This avoids CORS issues and keeps the Immich server private
-function useProxyThumbnailUrl(url: string | undefined): string | undefined {
-  if (!url) return undefined
-
-  // If the URL is already a proxy URL, return it as-is
-  if (url.startsWith('/api/thumbnail')) return url
-
-  // Otherwise, transform it to use the proxy endpoint
-  return `/api/thumbnail?url=${encodeURIComponent(url)}`
-}
-
 export function EntityCard({ entity, onClick }: EntityCardProps) {
   const Icon = getTypeIcon(entity.Type)
   const { addFilter } = useSearchStore()
@@ -38,9 +26,8 @@ export function EntityCard({ entity, onClick }: EntityCardProps) {
     .filter(([key]) => !['web_url', 'thumbnail_url'].includes(key))
     .slice(0, 3)
 
-  // Get thumbnail URL and transform to use proxy
-  const rawThumbnailUrl = entity.Thumbnail || (entity.Attributes?.thumbnail_url as string)
-  const thumbnailUrl = useProxyThumbnailUrl(rawThumbnailUrl)
+  // Get thumbnail URL
+  const thumbnailUrl = entity.Thumbnail || (entity.Attributes?.thumbnail_url as string)
 
   // Get web URL
   const webUrl = entity.Attributes?.web_url as string
