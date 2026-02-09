@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/yourname/mifind/internal/provider"
 	"github.com/yourname/mifind/internal/search"
+	"github.com/yourname/mifind/internal/search/filters"
 	"github.com/yourname/mifind/internal/types"
 )
 
@@ -174,15 +175,39 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build search query - don't apply limit/offset at provider level
-	// We'll apply pagination after getting all results
-	query := search.NewSearchQuery(req.Query)
-	query.Filters = req.Filters
-	query.Type = req.Type
-	// Don't set query.Limit/Offset - we'll paginate after ranking
-	query.TypeWeights = req.TypeWeights
-	query.IncludeRelated = req.IncludeRelated
-	query.MaxDepth = req.MaxDepth
+	// Parse and validate filters using the new typed system
+	typedQuery, err := search.ParseAndValidate(req.Query, req.Filters, h.typeRegistry)
+	if err != nil {
+		// Handle validation errors with clear messages
+		if multiErr, ok := err.(*filters.MultiValidationError); ok {
+			// Return all validation errors
+			h.writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+				"error":   "filter validation failed",
+				"details": formatValidationErrors(multiErr.AllErrors()),
+			})
+			return
+		}
+		if valErr, ok := err.(*filters.ValidationError); ok {
+			h.writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+				"error":  "filter validation failed",
+				"field":  valErr.FilterName,
+				"reason": valErr.Reason,
+			})
+			return
+		}
+		h.writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid request: %v", err))
+		return
+	}
+
+	// Set additional query fields
+	typedQuery.Type = req.Type
+	typedQuery.TypeWeights = req.TypeWeights
+	typedQuery.IncludeRelated = req.IncludeRelated
+	typedQuery.MaxDepth = req.MaxDepth
+	// Don't set typedQuery.Limit/Offset - we'll paginate after ranking
+
+	// Convert to legacy search query for federator
+	query := typedQuery.ToSearchQuery()
 
 	// Execute search (get all results from providers)
 	response := h.federator.Search(r.Context(), query)
@@ -891,4 +916,22 @@ func (h *Handlers) writeError(w http.ResponseWriter, status int, message string)
 	h.writeJSON(w, status, map[string]interface{}{
 		"error": message,
 	})
+}
+
+// formatValidationErrors formats validation errors for API responses.
+func formatValidationErrors(errs []error) []map[string]interface{} {
+	details := make([]map[string]interface{}, 0, len(errs))
+	for _, err := range errs {
+		if valErr, ok := err.(*filters.ValidationError); ok {
+			details = append(details, map[string]interface{}{
+				"field":  valErr.FilterName,
+				"reason": valErr.Reason,
+			})
+		} else {
+			details = append(details, map[string]interface{}{
+				"reason": err.Error(),
+			})
+		}
+	}
+	return details
 }

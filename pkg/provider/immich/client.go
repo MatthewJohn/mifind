@@ -80,8 +80,8 @@ func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int,
 
 	// Add people filter if specified
 	if len(peopleIDs) > 0 {
-		reqBody["people"] = map[string]any{
-			"persons": peopleIDs,
+		reqBody["personIds"] = map[string]any{
+			"personIds": peopleIDs,
 		}
 	}
 
