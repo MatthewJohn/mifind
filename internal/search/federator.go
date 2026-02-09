@@ -124,13 +124,20 @@ func (f *Federator) Search(ctx context.Context, query SearchQuery) FederatedResp
 	}
 
 	// Rank entities using the configured ranking strategy
-	rankedEntities := make([]RankedEntity, 0) // Default: empty
+	rankedEntities := make([]RankedEntity, 0)
 	if f.ranker != nil && len(allEntities) > 0 {
 		ranked, err := f.ranker.Rank(ctx, allEntities, query)
 		if err != nil {
 			f.logger.Warn().Err(err).Msg("Ranking failed, returning unsorted results")
+			// Fall back to unsorted results
+			for _, entity := range allEntities {
+				rankedEntities = append(rankedEntities, RankedEntity{
+					Entity:   entity.Entity,
+					Score:    0.5, // Neutral score for unranked results
+					Provider: entity.Provider,
+				})
+			}
 		} else {
-			// Use the ranked results with scores preserved
 			rankedEntities = ranked
 		}
 	}
