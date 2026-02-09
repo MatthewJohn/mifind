@@ -12,13 +12,26 @@ import (
 	searchpkg "github.com/yourname/mifind/pkg/search"
 )
 
+// mapKeys extracts keys from a map with string keys for logging/debugging.
+// Uses generics to work with any map[string]V type.
+func mapKeys[M ~map[string]V, V any](m M) []string {
+	if m == nil {
+		return nil
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // MeilisearchRanker provides Meilisearch-based ranking with real-time indexing.
 // This ranker indexes entities on every search and uses Meilisearch's BM25 ranking.
 type MeilisearchRanker struct {
-	client        *searchpkg.Client
-	config        RankingConfig
-	logger        *zerolog.Logger
-	typeRegistry  *types.TypeRegistry
+	client       *searchpkg.Client
+	config       RankingConfig
+	logger       *zerolog.Logger
+	typeRegistry *types.TypeRegistry
 }
 
 // NewMeilisearchRanker creates a new Meilisearch-based ranker.
@@ -52,11 +65,20 @@ func (r *MeilisearchRanker) Name() string {
 func (r *MeilisearchRanker) Rank(ctx context.Context, entities []EntityWithProvider, query SearchQuery) ([]RankedEntity, error) {
 	start := time.Now()
 
+	// Log input
+	r.logger.Debug().
+		Str("query", query.Query).
+		Str("type", query.Type).
+		Int("input_entities", len(entities)).
+		Strs("filters", mapKeys(query.Filters)).
+		Msg("Meilisearch Rank: starting")
+
 	// Step 1: Apply custom attribute filters in Go (before indexing)
 	filteredEntities := r.applyAttributeFilters(entities, query)
 
 	if len(filteredEntities) == 0 {
 		// No entities match the filters
+		r.logger.Debug().Msg("No entities after attribute filtering, returning empty results")
 		return []RankedEntity{}, nil
 	}
 
@@ -183,48 +205,6 @@ func (r *MeilisearchRanker) entityToDocument(entity EntityWithProvider) map[stri
 	return doc
 }
 
-// buildSearchRequest constructs a Meilisearch search request from SearchQuery.
-// NOTE: Only pushes basic filters (type, provider) to Meilisearch.
-// Custom attribute filters are applied in Go after getting results,
-// because provider-specific attributes (like person, album) are not
-// pre-configured as filterable in Meilisearch.
-func (r *MeilisearchRanker) buildSearchRequest(query SearchQuery) *meilisearch.SearchRequest {
-	// Use a large limit to get all results (pagination is applied after ranking)
-	limit := query.Limit
-	if limit == 0 {
-		limit = 10000 // Get all results, will paginate in Go
-	}
-
-	req := &meilisearch.SearchRequest{
-		Limit:  int64(limit),
-		Offset: int64(query.Offset),
-	}
-
-	// Only add basic filters that are configured as filterable in Meilisearch
-	filterParts := []string{}
-
-	// Type filter (always available)
-	if query.Type != "" {
-		filterParts = append(filterParts, fmt.Sprintf("type = \"%s\"", query.Type))
-	}
-
-	// Provider filter (always available)
-	if len(query.TypeWeights) == 1 {
-		for provider := range query.TypeWeights {
-			filterParts = append(filterParts, fmt.Sprintf("provider = \"%s\"", provider))
-		}
-	}
-
-	// Custom filters are NOT pushed to Meilisearch
-	// They will be applied in Go code after getting results
-
-	if len(filterParts) > 0 {
-		req.Filter = strings.Join(filterParts, " AND ")
-	}
-
-	return req
-}
-
 // buildSearchRequestWithIDs constructs a Meilisearch search request that filters
 // by entity IDs, ensuring only results from the current search are returned.
 // This allows concurrent searches without clearing the index.
@@ -316,34 +296,6 @@ func (r *MeilisearchRanker) transformEntityID(id string) string {
 			return '_'
 		}
 	}, id)
-}
-
-// buildFilterPart builds a single filter part for Meilisearch.
-func (r *MeilisearchRanker) buildFilterPart(key string, value any) string {
-	switch v := value.(type) {
-	case string:
-		return fmt.Sprintf("attr_%s = \"%s\"", key, v)
-	case int, int64:
-		return fmt.Sprintf("attr_%s = %v", key, v)
-	case float64:
-		return fmt.Sprintf("attr_%s = %f", key, v)
-	case bool:
-		return fmt.Sprintf("attr_%s = %t", key, v)
-	case []string:
-		if len(v) == 0 {
-			return ""
-		}
-		if len(v) == 1 {
-			return fmt.Sprintf("attr_%s = \"%s\"", key, v[0])
-		}
-		var orParts []string
-		for _, item := range v {
-			orParts = append(orParts, fmt.Sprintf("attr_%s = \"%s\"", key, item))
-		}
-		return "(" + strings.Join(orParts, " OR ") + ")"
-	default:
-		return ""
-	}
 }
 
 // convertSearchResults converts Meilisearch search results to RankedEntity.
@@ -448,37 +400,56 @@ func (r *MeilisearchRanker) hasProviderLevelFilters(filters map[string]any) bool
 
 // applyAttributeFilters applies custom attribute filters to entities in Go.
 // This is done before indexing so Meilisearch only sees relevant entities.
-// NOTE: Provider-level filters (marked with ProviderLevel in attribute metadata)
-// are handled by providers and should NOT be applied here since they don't exist as entity attributes.
+// NOTE: Excludes both provider-level filters (marked with ProviderLevel in attribute metadata)
+// AND "type" filter (entity.Type is a struct field, not entity.Attributes["type"]).
+// Provider-level filters are handled by providers via their APIs.
+// Type filter is handled by providers via query.Type field.
 func (r *MeilisearchRanker) applyAttributeFilters(entities []EntityWithProvider, query SearchQuery) []EntityWithProvider {
 	if len(query.Filters) == 0 {
 		return entities
 	}
 
-	// Get all attribute definitions to check which are provider-level
 	allAttrs := r.typeRegistry.GetAllAttributes()
 
-	// Build a new filters map excluding provider-level filters
+	// Build entityFilters map excluding:
+	// 1. Provider-level filters (handled by providers)
+	// 2. "type" filter (entity.Type is a struct field, not an attribute)
 	entityFilters := make(map[string]any)
 	for key, val := range query.Filters {
+		if key == types.AttrType {
+			// Skip "type" filter - it's already applied at provider level
+			// via query.Type field, and entity.Type is a struct field
+			continue
+		}
 		if attrDef, exists := allAttrs[key]; !exists || !attrDef.Filter.ProviderLevel {
 			// Only include filters that are NOT provider-level
 			entityFilters[key] = val
 		}
 	}
 
-	// If no entity-level filters, return all entities
 	if len(entityFilters) == 0 {
+		r.logger.Debug().
+			Strs("excluded_filters", mapKeys(query.Filters)).
+			Msg("No entity-level filters after excluding provider-level and type filters")
 		return entities
 	}
 
-	filtered := make([]EntityWithProvider, 0, len(entities))
+	r.logger.Debug().
+		Strs("entity_filters", mapKeys(entityFilters)).
+		Int("input_entities", len(entities)).
+		Msg("Applying entity-level attribute filters")
 
+	filtered := make([]EntityWithProvider, 0, len(entities))
 	for _, entity := range entities {
 		if r.matchesFilters(entity.Entity, entityFilters) {
 			filtered = append(filtered, entity)
 		}
 	}
+
+	r.logger.Debug().
+		Int("filtered_entities", len(filtered)).
+		Int("filtered_out", len(entities)-len(filtered)).
+		Msg("Entity-level filter results")
 
 	return filtered
 }
