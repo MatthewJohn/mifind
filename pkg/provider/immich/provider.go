@@ -212,7 +212,39 @@ func (p *Provider) GetRelated(ctx context.Context, id string, relType string) ([
 
 // Search performs a search query on Immich.
 func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]types.Entity, error) {
-	searchResult, err := p.client.Search(ctx, query.Query, query.Limit)
+	// Extract filters from query
+	var peopleIDs []string
+	var location string
+	var albumID string
+
+	// Handle person filter - can be a single value or array of values
+	if personFilter, ok := query.Filters["person"]; ok && personFilter != nil {
+		switch v := personFilter.(type) {
+		case string:
+			peopleIDs = []string{v}
+		case []string:
+			peopleIDs = v
+		case []any:
+			peopleIDs = make([]string, 0, len(v))
+			for _, item := range v {
+				if str, ok := item.(string); ok {
+					peopleIDs = append(peopleIDs, str)
+				}
+			}
+		}
+	}
+
+	// Handle location filter
+	if locFilter, ok := query.Filters[types.AttrLocation]; ok && locFilter != nil {
+		location = fmt.Sprint(locFilter)
+	}
+
+	// Handle album filter
+	if albumFilter, ok := query.Filters[types.AttrAlbum]; ok && albumFilter != nil {
+		albumID = fmt.Sprint(albumFilter)
+	}
+
+	searchResult, err := p.client.SearchWithFilters(ctx, query.Query, query.Limit, peopleIDs, location, albumID)
 	if err != nil {
 		return nil, err
 	}
@@ -241,15 +273,17 @@ func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]ty
 	}
 
 	// Add people - fallback since Immich search API doesn't return people
-	// Fetch all people and filter locally by name
-	people, err := p.client.ListPeople(ctx, 0)
-	if err == nil && len(people) > 0 {
-		queryLower := strings.ToLower(query.Query)
-		for _, person := range people {
-			if person.Name != "" && strings.Contains(strings.ToLower(person.Name), queryLower) {
-				entities = append(entities, p.personToEntity(person))
-				if query.Limit > 0 && len(entities) >= query.Limit {
-					break
+	// Fetch all people and filter locally by name (only if no person filter applied)
+	if len(peopleIDs) == 0 {
+		people, err := p.client.ListPeople(ctx, 0)
+		if err == nil && len(people) > 0 {
+			queryLower := strings.ToLower(query.Query)
+			for _, person := range people {
+				if person.Name != "" && strings.Contains(strings.ToLower(person.Name), queryLower) {
+					entities = append(entities, p.personToEntity(person))
+					if query.Limit > 0 && len(entities) >= query.Limit {
+						break
+					}
 				}
 			}
 		}
@@ -447,7 +481,26 @@ func (p *Provider) assetToEntity(asset Asset) types.Entity {
 	entity := types.NewEntity(entityID, entityType, p.Name(), asset.OriginalFileName)
 	entity.AddAttribute(types.AttrPath, asset.OriginalPath)
 	entity.AddAttribute("original_file_name", asset.OriginalFileName)
+
+	// Debug: Log file size from API
+	if p.client.logger != nil {
+		p.client.logger.Debug().
+			Str("asset_id", asset.ID).
+			Int64("file_size", asset.FileSize).
+			Str("original_file_name", asset.OriginalFileName).
+			Msg("Asset file size from API")
+	}
+
 	entity.AddAttribute(types.AttrSize, asset.FileSize)
+
+	// Build web URL for Immich asset
+	webURL := fmt.Sprintf("%s/assets/%s", strings.TrimSuffix(p.client.baseURL, "/api"), asset.ID)
+	entity.AddAttribute("web_url", webURL)
+
+	// Build thumbnail URL
+	thumbnailURL := fmt.Sprintf("%s/api/assets/%s/thumbnail", p.client.baseURL, asset.ID)
+	entity.AddAttribute("thumbnail_url", thumbnailURL)
+
 	entity.AddAttribute("is_favorite", asset.IsFavorite)
 	entity.AddAttribute("is_archived", asset.IsArchived)
 	entity.AddAttribute(types.AttrCreated, asset.LocalDateTime.Unix())
@@ -529,6 +582,10 @@ func (p *Provider) albumToEntity(album Album) types.Entity {
 		entity.AddAttribute(types.AttrDescription, album.Description)
 	}
 
+	// Build web URL for Immich album
+	webURL := fmt.Sprintf("%s/albums/%s", strings.TrimSuffix(p.client.baseURL, "/api"), album.ID)
+	entity.AddAttribute("web_url", webURL)
+
 	entity.AddSearchToken(album.AlbumName)
 	if album.Description != "" {
 		entity.AddSearchToken(album.Description)
@@ -552,6 +609,16 @@ func (p *Provider) personToEntity(person Person) types.Entity {
 
 	if person.BirthDate != "" {
 		entity.AddAttribute("birth_date", person.BirthDate)
+	}
+
+	// Build web URL for Immich person
+	webURL := fmt.Sprintf("%s/people/%s", strings.TrimSuffix(p.client.baseURL, "/api"), person.ID)
+	entity.AddAttribute("web_url", webURL)
+
+	// Build thumbnail URL if person has a thumbnail
+	if person.ThumbnailPath != "" {
+		thumbnailURL := fmt.Sprintf("%s/api/people/%s/thumbnail", p.client.baseURL, person.ID)
+		entity.AddAttribute("thumbnail_url", thumbnailURL)
 	}
 
 	entity.AddSearchToken(displayName)

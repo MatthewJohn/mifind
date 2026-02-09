@@ -52,10 +52,18 @@ func NewClientWithLogger(baseURL, apiKey string, insecureSkipVerify bool, logger
 // Search performs a search query against the Immich API.
 // Note: The Immich search API only returns assets and albums, not people.
 func (c *Client) Search(ctx context.Context, query string, limit int) (*SearchResponse, error) {
+	return c.SearchWithFilters(ctx, query, limit, nil, "", "")
+}
+
+// SearchWithFilters performs a search query with filters for people, locations, etc.
+func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int, peopleIDs []string, location string, albumID string) (*SearchResponse, error) {
 	if c.logger != nil {
 		c.logger.Debug().
 			Str("query", query).
 			Int("limit", limit).
+			Strs("people", peopleIDs).
+			Str("location", location).
+			Str("album", albumID).
 			Msg("Immich: Search request")
 	}
 
@@ -68,6 +76,29 @@ func (c *Client) Search(ctx context.Context, query string, limit int) (*SearchRe
 		"pageSize":  limit,
 		"query":     query,
 		"algorithm": "smart", // Use smart search
+	}
+
+	// Add people filter if specified
+	if len(peopleIDs) > 0 {
+		reqBody["people"] = map[string]any{
+			"persons": peopleIDs,
+		}
+	}
+
+	// Add location filter if specified
+	if location != "" {
+		reqBody["location"] = location
+	}
+
+	// Add album filter if specified
+	if albumID != "" {
+		reqBody["albumId"] = albumID
+	}
+
+	if c.logger != nil {
+		c.logger.Debug().
+			RawJSON("body", mustMarshalJSON(reqBody)).
+			Msg("Immich: Search request body")
 	}
 
 	var result SearchResponse
@@ -86,6 +117,15 @@ func (c *Client) Search(ctx context.Context, query string, limit int) (*SearchRe
 	}
 
 	return &result, nil
+}
+
+// mustMarshalJSON marshals to JSON or panics.
+func mustMarshalJSON(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
 
 // GetAsset retrieves a single asset by ID.
@@ -200,6 +240,36 @@ func (c *Client) GetPerson(ctx context.Context, id string) (*Person, error) {
 	}
 
 	return &result, nil
+}
+
+// GetPersonAssets retrieves all assets for a person.
+func (c *Client) GetPersonAssets(ctx context.Context, personID string, limit int) ([]Asset, error) {
+	url := fmt.Sprintf("%s/api/people/%s/assets", c.baseURL, personID)
+
+	if c.logger != nil {
+		c.logger.Debug().
+			Str("person_id", personID).
+			Int("limit", limit).
+			Msg("Immich: GetPersonAssets request")
+	}
+
+	var result []Asset
+	if err := c.doGet(ctx, url, &result); err != nil {
+		return nil, fmt.Errorf("get person assets failed: %w", err)
+	}
+
+	// Apply limit if specified
+	if limit > 0 && len(result) > limit {
+		return result[:limit], nil
+	}
+
+	if c.logger != nil {
+		c.logger.Debug().
+			Int("count", len(result)).
+			Msg("Immich: GetPersonAssets response")
+	}
+
+	return result, nil
 }
 
 // Health checks the health of the Immich API.
