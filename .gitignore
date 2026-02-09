@@ -8,6 +8,7 @@
 /mifind-mcp
 /filesystem-api
 /main
+bin/
 
 # Test binary
 *.test
