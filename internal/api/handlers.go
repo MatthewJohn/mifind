@@ -942,25 +942,15 @@ func formatValidationErrors(errs []error) []map[string]interface{} {
 	return details
 }
 
-// mapKeys extracts keys from a map for logging/debugging
-func mapKeys(m any) []string {
+// mapKeys extracts keys from a map with string keys for logging/debugging.
+// Uses generics to work with any map[string]V type.
+func mapKeys[M ~map[string]V, V any](m M) []string {
 	if m == nil {
 		return nil
 	}
-	keys := make([]string, 0)
-	switch v := m.(type) {
-	case map[string]provider.FilterCapability:
-		for k := range v {
-			keys = append(keys, k)
-		}
-	case map[string][]provider.FilterOption:
-		for k := range v {
-			keys = append(keys, k)
-		}
-	case map[string]types.AttributeDef:
-		for k := range v {
-			keys = append(keys, k)
-		}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
 	}
 	return keys
 }
