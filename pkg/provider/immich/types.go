@@ -1,10 +1,59 @@
 package immich
 
 import (
+	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/yourname/mifind/internal/types"
 )
+
+// FlexibleFloat64 handles unmarshaling from either string or float64.
+// Immich API returns duration as an empty string for images, and as a number for videos.
+type FlexibleFloat64 float64
+
+// UnmarshalJSON implements json.Unmarshaler for FlexibleFloat64.
+func (f *FlexibleFloat64) UnmarshalJSON(data []byte) error {
+	// Handle null
+	if len(data) == 0 || string(data) == "null" {
+		*f = 0
+		return nil
+	}
+	// Handle empty string
+	if string(data) == `""` {
+		*f = 0
+		return nil
+	}
+	// Handle string number
+	if len(data) > 0 && data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		if s == "" {
+			*f = 0
+			return nil
+		}
+		val, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return err
+		}
+		*f = FlexibleFloat64(val)
+		return nil
+	}
+	// Handle direct number
+	var val float64
+	if err := json.Unmarshal(data, &val); err != nil {
+		return err
+	}
+	*f = FlexibleFloat64(val)
+	return nil
+}
+
+// Value returns the float64 value.
+func (f FlexibleFloat64) Value() float64 {
+	return float64(f)
+}
 
 // API types for the Immich API responses.
 // See https://github.com/immich-app/immich/tree/main/server/api-openapi
@@ -20,9 +69,9 @@ type Asset struct {
 	Height           int       `json:"height,omitempty"`
 	ExifInfo         *ExifInfo `json:"exifInfo,omitempty"`
 	Thumbhash        string    `json:"thumbhash,omitempty"`
-	FileSize         int64     `json:"fileSize,omitempty"`
-	Duration         float64   `json:"duration,omitempty"`
-	CreatedAt        time.Time `json:"createdAt"`
+	FileSize         int64          `json:"fileSize,omitempty"`
+	Duration         FlexibleFloat64 `json:"duration,omitempty"`
+	CreatedAt        time.Time      `json:"createdAt"`
 	UpdatedAt        time.Time `json:"updatedAt"`
 	LocalDateTime    time.Time `json:"localDateTime"`
 	IsFavorite       bool      `json:"isFavorite"`

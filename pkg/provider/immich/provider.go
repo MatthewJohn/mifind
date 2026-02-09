@@ -436,8 +436,8 @@ func (p *Provider) assetToEntity(asset Asset) types.Entity {
 	if asset.Height > 0 {
 		entity.AddAttribute(types.AttrHeight, asset.Height)
 	}
-	if asset.Duration > 0 {
-		entity.AddAttribute(types.AttrDuration, int64(asset.Duration))
+	if asset.Duration.Value() > 0 {
+		entity.AddAttribute(types.AttrDuration, int64(asset.Duration.Value()))
 	}
 	if asset.Description != "" {
 		entity.AddAttribute(types.AttrDescription, asset.Description)

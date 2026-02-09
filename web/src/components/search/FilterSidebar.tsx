@@ -261,7 +261,7 @@ export function FilterSidebar() {
 
             {/* Show more capabilities if available */}
             {filterData.capabilities && Object.keys(filterData.capabilities).length > 4 && (
-              <details className="group">
+              <details className="group" open={!!filterData.values && Object.keys(filterData.values).length > 0}>
                 <summary className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900">
                   More filters ▼
                 </summary>
@@ -269,27 +269,57 @@ export function FilterSidebar() {
                   {Object.entries(filterData.capabilities)
                     .filter(([key]) => !['type', 'path', 'extension', 'size'].includes(key))
                     .slice(0, 5)
-                    .map(([key, cap]: [string, any]) => (
-                      <div key={key}>
-                        <h4 className="text-xs font-medium text-gray-500 mb-1">{cap.Description || key}</h4>
-                        {cap.Options ? (
-                          <select className="w-full text-xs border border-gray-300 rounded px-2 py-1">
-                            <option value="">All</option>
-                            {cap.Options.map((opt: any) => (
-                              <option key={opt.Value} value={opt.Value}>
-                                {opt.Label || opt.Value}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            placeholder={`Filter by ${key}`}
-                            className="w-full text-xs border border-gray-300 rounded px-2 py-1"
-                          />
-                        )}
-                      </div>
-                    ))}
+                    .map(([key, cap]: [string, any]) => {
+                      // Check if we have pre-obtained values from the API
+                      const preObtainedValues = filterData.values?.[key]
+                      // Fall back to options from capabilities (for providers that include them)
+                      const options = preObtainedValues || cap.Options
+                      const hasOptions = options && options.length > 0
+
+                      return (
+                        <div key={key}>
+                          <h4 className="text-xs font-medium text-gray-500 mb-1">{cap.Description || key}</h4>
+                          {hasOptions ? (
+                            <select
+                              className="w-full text-xs border border-gray-300 rounded px-2 py-1"
+                              onChange={(e) => {
+                                const value = e.target.value
+                                if (value) {
+                                  removeFilter(key)
+                                  addFilter({ key, operator: 'eq', value })
+                                } else {
+                                  removeFilter(key)
+                                }
+                              }}
+                              value={String(filters.find(f => f.key === key)?.value ?? '')}
+                            >
+                              <option value="">All</option>
+                              {options.map((opt: any) => (
+                                <option key={opt.Value} value={opt.Value}>
+                                  {opt.Label || opt.Value}
+                                  {opt.Count > 0 ? ` (${opt.Count})` : ''}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              placeholder={`Filter by ${key}`}
+                              className="w-full text-xs border border-gray-300 rounded px-2 py-1"
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  const target = e.target as HTMLInputElement
+                                  if (target.value.trim()) {
+                                    removeFilter(key)
+                                    addFilter({ key, operator: 'contains', value: target.value.trim() })
+                                  }
+                                }
+                              }}
+                            />
+                          )}
+                        </div>
+                      )
+                    })}
                 </div>
               </details>
             )}
