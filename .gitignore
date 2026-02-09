@@ -42,3 +42,5 @@ Thumbs.db
 *.ms
 data.ms/
 TODO.md
+
+openapi.json

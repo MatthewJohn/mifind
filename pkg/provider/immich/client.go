@@ -42,8 +42,8 @@ func NewClient(baseURL, apiKey string, insecureSkipVerify bool) *Client {
 
 // Search performs a search query against the Immich API.
 func (c *Client) Search(ctx context.Context, query string, limit int) (*SearchResponse, error) {
-	// Immich uses a different API structure - we'll use the search endpoint
-	url := fmt.Sprintf("%s/api/search/meta", c.baseURL)
+	// Immich uses /api/search/METADATA for smart search with metadata
+	url := fmt.Sprintf("%s/api/search/metadata", c.baseURL)
 
 	// Build search request body
 	reqBody := map[string]any{
@@ -86,69 +86,54 @@ func (c *Client) GetAlbum(ctx context.Context, id string) (*Album, error) {
 }
 
 // GetAlbumAssets retrieves all assets in an album.
+// Uses getAlbumInfo which returns assets in the AlbumResponseDto.
 func (c *Client) GetAlbumAssets(ctx context.Context, albumID string, limit int) ([]Asset, error) {
-	url := fmt.Sprintf("%s/api/albums/%s/assets", c.baseURL, albumID)
-
-	reqBody := map[string]any{
-		"page":     1,
-		"pageSize": limit,
-	}
+	url := fmt.Sprintf("%s/api/albums/%s", c.baseURL, albumID)
 
 	var result struct {
-		Total int     `json:"total"`
-		Count int     `json:"count"`
-		Items []Asset `json:"items"`
+		Assets []Asset `json:"assets"`
 	}
 
-	if err := c.doPost(ctx, url, reqBody, &result); err != nil {
+	if err := c.doGet(ctx, url, &result); err != nil {
 		return nil, fmt.Errorf("get album assets failed: %w", err)
 	}
 
-	return result.Items, nil
+	// Apply limit if specified
+	if limit > 0 && len(result.Assets) > limit {
+		return result.Assets[:limit], nil
+	}
+
+	return result.Assets, nil
 }
 
 // ListAlbums lists all albums.
-// If limit is 0, returns all albums (pagination not implemented).
+// The Immich API returns all albums at once (no pagination).
 func (c *Client) ListAlbums(ctx context.Context, limit int) ([]Album, error) {
 	url := fmt.Sprintf("%s/api/albums", c.baseURL)
 
-	pageSize := limit
-	if limit == 0 {
-		pageSize = 1000 // Use a large number for "all"
-	}
-
-	reqBody := map[string]any{
-		"page":     1,
-		"pageSize": pageSize,
-	}
-
-	var result struct {
-		Total int     `json:"total"`
-		Count int     `json:"count"`
-		Items []Album `json:"items"`
-	}
-
-	if err := c.doPost(ctx, url, reqBody, &result); err != nil {
+	var result []Album
+	if err := c.doGet(ctx, url, &result); err != nil {
 		return nil, fmt.Errorf("list albums failed: %w", err)
 	}
 
-	return result.Items, nil
+	// Apply limit if specified
+	if limit > 0 && len(result) > limit {
+		return result[:limit], nil
+	}
+
+	return result, nil
 }
 
 // ListPeople lists all detected people.
-// If limit is 0, returns all people (pagination not implemented).
+// If limit is 0, returns all people (up to API max).
 func (c *Client) ListPeople(ctx context.Context, limit int) ([]Person, error) {
-	url := fmt.Sprintf("%s/api/people", c.baseURL)
-
-	pageSize := limit
+	size := limit
 	if limit == 0 {
-		pageSize = 1000 // Use a large number for "all"
+		size = 1000 // Use the API max
 	}
 
-	reqBody := map[string]any{
-		"page":     1,
-		"pageSize": pageSize,
-	}
+	// Immich uses 'size' not 'pageSize' for people endpoint
+	url := fmt.Sprintf("%s/api/people?page=1&size=%d", c.baseURL, size)
 
 	var result struct {
 		Total int      `json:"total"`
@@ -156,7 +141,7 @@ func (c *Client) ListPeople(ctx context.Context, limit int) ([]Person, error) {
 		Items []Person `json:"people"`
 	}
 
-	if err := c.doPost(ctx, url, reqBody, &result); err != nil {
+	if err := c.doGet(ctx, url, &result); err != nil {
 		return nil, fmt.Errorf("list people failed: %w", err)
 	}
 
@@ -178,7 +163,7 @@ func (c *Client) GetPerson(ctx context.Context, id string) (*Person, error) {
 // Health checks the health of the Immich API.
 func (c *Client) Health(ctx context.Context) error {
 	// Immich doesn't have a standard health endpoint, so we'll use ping
-	url := fmt.Sprintf("%s/api/server-info/ping", c.baseURL)
+	url := fmt.Sprintf("%s/api/server/ping", c.baseURL)
 
 	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
