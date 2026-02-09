@@ -109,8 +109,23 @@ func (r *MeilisearchRanker) indexEntities(ctx context.Context, entities []Entity
 
 // entityToDocument converts an EntityWithProvider to a Meilisearch document.
 func (r *MeilisearchRanker) entityToDocument(entity EntityWithProvider) map[string]any {
+	// Transform entity ID to be Meilisearch-compatible
+	// Meilisearch only allows alphanumeric, hyphens, and underscores
+	// Replace colons with hyphens and other special chars with underscores
+	meilisearchID := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			return r
+		case r == '-', r == '_':
+			return r
+		default:
+			return '_'
+		}
+	}, entity.Entity.ID)
+
 	doc := map[string]any{
-		"id":            entity.Entity.ID,
+		"id":            meilisearchID,
+		"original_id":   entity.Entity.ID, // Store original ID for lookup
 		"title":         entity.Entity.Title,
 		"description":   entity.Entity.Description,
 		"type":          entity.Entity.Type,
@@ -192,7 +207,9 @@ func (r *MeilisearchRanker) buildSearchRequestWithIDs(query SearchQuery, entitie
 	if len(entities) > 0 {
 		idFilters := make([]string, 0, len(entities))
 		for _, entity := range entities {
-			idFilters = append(idFilters, fmt.Sprintf("id = \"%s\"", entity.Entity.ID))
+			// Transform entity ID to Meilisearch-compatible format
+			meilisearchID := r.transformEntityID(entity.Entity.ID)
+			idFilters = append(idFilters, fmt.Sprintf("id = \"%s\"", meilisearchID))
 		}
 		// Use OR for entity IDs (any of these IDs)
 		if len(idFilters) > 0 {
@@ -217,6 +234,21 @@ func (r *MeilisearchRanker) buildSearchRequestWithIDs(query SearchQuery, entitie
 	}
 
 	return req
+}
+
+// transformEntityID converts an entity ID to Meilisearch-compatible format.
+// Meilisearch only allows alphanumeric, hyphens, and underscores.
+func (r *MeilisearchRanker) transformEntityID(id string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			return r
+		case r == '-', r == '_':
+			return r
+		default:
+			return '_'
+		}
+	}, id)
 }
 
 // buildFilterPart builds a single filter part for Meilisearch.
@@ -263,12 +295,13 @@ func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchRespons
 			continue
 		}
 
-		id, ok := hitMap["id"].(string)
+		// Use original_id to look up the entity (the id field has transformed chars)
+		originalID, ok := hitMap["original_id"].(string)
 		if !ok {
 			continue
 		}
 
-		entity, ok := entityMap[id]
+		entity, ok := entityMap[originalID]
 		if !ok {
 			continue
 		}
