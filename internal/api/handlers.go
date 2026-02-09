@@ -3,11 +3,13 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -16,6 +18,50 @@ import (
 	"github.com/yourname/mifind/internal/search"
 	"github.com/yourname/mifind/internal/types"
 )
+
+// FilterValueCache caches filter values with TTL.
+type FilterValueCache struct {
+	values     map[string][]provider.FilterOption
+	expiresAt  map[string]time.Time
+	mu         sync.RWMutex
+	ttl        time.Duration
+}
+
+// NewFilterValueCache creates a new filter value cache.
+func NewFilterValueCache(ttl time.Duration) *FilterValueCache {
+	return &FilterValueCache{
+		values:    make(map[string][]provider.FilterOption),
+		expiresAt: make(map[string]time.Time),
+		ttl:       ttl,
+	}
+}
+
+// Get retrieves cached values if not expired.
+func (c *FilterValueCache) Get(key string) ([]provider.FilterOption, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	values, exists := c.values[key]
+	if !exists {
+		return nil, false
+	}
+
+ expires, ok := c.expiresAt[key]
+	if !ok || time.Now().After(expires) {
+		return nil, false
+	}
+
+	return values, true
+}
+
+// Set stores values in cache with expiration.
+func (c *FilterValueCache) Set(key string, values []provider.FilterOption) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.values[key] = values
+	c.expiresAt[key] = time.Now().Add(c.ttl)
+}
 
 // Handlers provides HTTP handlers for the mifind API.
 type Handlers struct {
@@ -26,6 +72,7 @@ type Handlers struct {
 	relationships *search.Relationships
 	typeRegistry  *types.TypeRegistry
 	logger        *zerolog.Logger
+	filterCache   *FilterValueCache
 }
 
 // NewHandlers creates a new handlers instance.
@@ -46,6 +93,7 @@ func NewHandlers(
 		relationships: relationships,
 		typeRegistry:  typeRegistry,
 		logger:        logger,
+		filterCache:   NewFilterValueCache(24 * time.Hour), // 1-day cache
 	}
 }
 
@@ -373,20 +421,16 @@ func (h *Handlers) GetType(w http.ResponseWriter, r *http.Request) {
 
 // GetFilters returns available filters for a search query.
 // It also returns provider filter capabilities and pre-obtained filter values.
+// When a search query is provided, capabilities are dynamically filtered to only
+// include providers that actually returned results.
 func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("search")
 	typeName := r.URL.Query().Get("type")
 
-	// Get provider filter capabilities
-	capabilities, err := h.manager.FilterCapabilities(r.Context())
-	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get filter capabilities: %v", err))
-		return
-	}
-
 	// Execute search to get entities (if query is provided)
 	var filterResult search.FilterResult
 	var preObtainedValues map[string][]provider.FilterOption
+	var capabilities map[string]provider.FilterCapability
 
 	if query != "" || typeName != "" {
 		searchQuery := search.NewSearchQuery(query)
@@ -402,35 +446,105 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 			entities[i] = ranked.Entity
 		}
 
-		// Extract filters from search results
+		// Extract filters from search results (for result-based filters like extensions)
 		filterResult = h.filters.ExtractFilters(entities, typeName)
+
+		// Get capabilities only from providers that returned results
+		capabilities = h.getProviderCapabilitiesForResults(r.Context(), response.Results)
+
+		// Fetch pre-obtained values for providers with results (e.g., Immich people, albums)
+		// These are provider-wide filters, not result-based
+		preObtainedValues = h.getPreObtainedFilterValues(r.Context(), capabilities)
 	} else {
-		// No search query - fetch pre-obtained filter values
+		// No search query - get all capabilities
+		allCapabilities, err := h.manager.FilterCapabilities(r.Context())
+		if err != nil {
+			h.writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get filter capabilities: %v", err))
+			return
+		}
+		capabilities = allCapabilities
+
+		// Fetch pre-obtained filter values
 		preObtainedValues = h.getPreObtainedFilterValues(r.Context(), capabilities)
 	}
 
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"capabilities": capabilities,
 		"filters":      filterResult,
-		"values":       preObtainedValues, // New field
+		"values":       preObtainedValues,
 	})
 }
 
+// getProviderCapabilitiesForResults returns filter capabilities only from providers
+// that actually returned results in the current search.
+func (h *Handlers) getProviderCapabilitiesForResults(ctx context.Context, results []search.FederatedResult) map[string]provider.FilterCapability {
+	capabilities := make(map[string]provider.FilterCapability)
+
+	for _, result := range results {
+		// Skip providers that had errors or returned no entities
+		if result.Error != nil || len(result.Entities) == 0 {
+			continue
+		}
+
+		prov, ok := h.manager.Get(result.Provider)
+		if !ok {
+			continue
+		}
+
+		providerCaps, err := prov.FilterCapabilities(ctx)
+		if err != nil {
+			h.logger.Warn().
+				Str("provider", result.Provider).
+				Err(err).
+				Msg("Failed to get filter capabilities for provider")
+			continue
+		}
+
+		// Merge this provider's capabilities
+		for key, cap := range providerCaps {
+			capabilities[key] = cap
+		}
+	}
+
+	return capabilities
+}
+
 // getPreObtainedFilterValues fetches pre-obtained filter values from providers.
-func (h *Handlers) getPreObtainedFilterValues(ctx context.Context, capabilities map[string]provider.FilterCapability) map[string][]provider.FilterOption {
+// Uses a 1-day in-memory cache to avoid repeated slow provider API calls.
+// Cache misses are fetched asynchronously with a timeout to avoid blocking.
+func (h *Handlers) getPreObtainedFilterValues(_ context.Context, capabilities map[string]provider.FilterCapability) map[string][]provider.FilterOption {
 	result := make(map[string][]provider.FilterOption)
 
 	// Get values for each filter that has capabilities
 	for filterName := range capabilities {
-		values, err := h.manager.GetFilterValues(ctx, filterName)
-		if err != nil {
-			h.logger.Warn().
-				Str("filter", filterName).
-				Err(err).
-				Msg("Failed to get pre-obtained filter values")
+		// Check cache first
+		cachedValues, found := h.filterCache.Get(filterName)
+		if found {
+			result[filterName] = cachedValues
 			continue
 		}
+
+		// Cache miss - fetch in background with timeout
+		// Use a separate context to avoid blocking the HTTP response
+		fetchCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+		values, err := h.manager.GetFilterValues(fetchCtx, filterName)
+		cancel() // Always cancel the context
+
+		if err != nil {
+			// Only log non-timeout errors to avoid noise
+			if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+				h.logger.Warn().
+					Str("filter", filterName).
+					Err(err).
+					Msg("Failed to get pre-obtained filter values")
+			}
+			continue
+		}
+
+		// Cache the values for 1 day
 		if len(values) > 0 {
+			h.filterCache.Set(filterName, values)
 			result[filterName] = values
 		}
 	}

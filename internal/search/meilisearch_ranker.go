@@ -86,6 +86,7 @@ func (r *MeilisearchRanker) Rank(ctx context.Context, entities []EntityWithProvi
 	r.logger.Debug().
 		Int("input_entities", len(entities)).
 		Int("filtered_entities", len(filteredEntities)).
+		Int("meilisearch_hits", len(searchResp.Hits)).
 		Int("ranked_results", len(ranked)).
 		Dur("duration", time.Since(start)).
 		Msg("Meilisearch ranking completed")
@@ -301,6 +302,9 @@ func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchRespons
 
 	ranked := make([]RankedEntity, 0, len(resp.Hits))
 
+	skippedMissingOriginalID := 0
+	skippedNotFoundInMap := 0
+
 	for _, hit := range resp.Hits {
 		hitMap, ok := hit.(map[string]any)
 		if !ok {
@@ -310,11 +314,15 @@ func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchRespons
 		// Use original_id to look up the entity (the id field has transformed chars)
 		originalID, ok := hitMap["original_id"].(string)
 		if !ok {
+			skippedMissingOriginalID++
+			r.logger.Debug().Str("hit", fmt.Sprintf("%v", hit)).Msg("Missing original_id field in Meilisearch hit")
 			continue
 		}
 
 		entity, ok := entityMap[originalID]
 		if !ok {
+			skippedNotFoundInMap++
+			r.logger.Debug().Str("original_id", originalID).Msg("Entity not found in entityMap")
 			continue
 		}
 
@@ -328,6 +336,13 @@ func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchRespons
 			Provider: entity.Provider,
 		})
 	}
+
+	r.logger.Debug().
+		Int("meilisearch_hits", len(resp.Hits)).
+		Int("converted_entities", len(ranked)).
+		Int("skipped_missing_original_id", skippedMissingOriginalID).
+		Int("skipped_not_found_in_map", skippedNotFoundInMap).
+		Msg("Converted Meilisearch results to RankedEntity")
 
 	return ranked
 }

@@ -118,8 +118,8 @@ func (c *Client) updateIndexSettings(ctx context.Context) error {
 	return nil
 }
 
-// UpdateDocuments upserts documents into the index asynchronously.
-// Returns immediately without waiting for the update to complete.
+// UpdateDocuments upserts documents into the index and waits for indexing to complete.
+// This ensures search consistency by waiting for documents to be indexed before returning.
 func (c *Client) UpdateDocuments(documents []map[string]any) error {
 	if len(documents) == 0 {
 		return nil
@@ -136,8 +136,13 @@ func (c *Client) UpdateDocuments(documents []map[string]any) error {
 		return fmt.Errorf("failed to update documents: %w", err)
 	}
 
-	// Don't wait - the index will be updated asynchronously
-	c.logger.Debug().Int("count", len(documents)).Int64("task", task.TaskUID).Msg("Queued document update in Meilisearch (async)")
+	// Wait for the update task to complete to ensure search consistency
+	_, err = c.waitForTask(task.TaskUID)
+	if err != nil {
+		return fmt.Errorf("failed to wait for document update: %w", err)
+	}
+
+	c.logger.Debug().Int("count", len(documents)).Int64("task", task.TaskUID).Msg("Document update completed in Meilisearch")
 	return nil
 }
 
