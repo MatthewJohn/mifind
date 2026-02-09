@@ -483,22 +483,22 @@ var (
 			Priority: 40,
 		},
 		Filter: FilterConfig{
-			SupportsEq:     true,
-			SupportsNeq:    true,
-			Cacheable:      true,
-			CacheTTL:       24 * time.Hour,
-			ProviderLevel:  true, // Filtered by provider APIs (e.g., Immich, Google Photos)
+			SupportsEq:    true,
+			SupportsNeq:   true,
+			Cacheable:     true,
+			CacheTTL:      24 * time.Hour,
+			ProviderLevel: true, // Filtered by provider APIs (e.g., Immich, Google Photos)
 		},
 	}
 
 	// AttrDefPerson is the standard person attribute definition.
 	AttrDefPerson = AttributeDef{
-		Name:          AttrPeople,
+		Name:          AttrPerson,
 		Type:          AttributeTypeStringSlice,
 		Required:      false,
 		Filterable:    true,
 		Description:   "People detected in media (faces)",
-		AlwaysVisible: false,
+		AlwaysVisible: true, // Always show person filter regardless of search results
 		UI: UIConfig{
 			Widget:   "multiselect",
 			Icon:     "Users",
@@ -507,10 +507,10 @@ var (
 			Priority: 41,
 		},
 		Filter: FilterConfig{
-			SupportsEq:     true,
-			Cacheable:      true,
-			CacheTTL:       24 * time.Hour,
-			ProviderLevel:  true, // Filtered by provider APIs (e.g., Immich, Google Photos)
+			SupportsEq:    true,
+			Cacheable:     true,
+			CacheTTL:      24 * time.Hour,
+			ProviderLevel: true, // Filtered by provider APIs (e.g., Immich, Google Photos)
 		},
 	}
 

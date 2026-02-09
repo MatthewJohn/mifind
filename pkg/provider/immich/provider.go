@@ -350,7 +350,7 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 // FilterValues returns pre-obtained filter values for supported filters.
 func (p *Provider) FilterValues(ctx context.Context, filterName string) ([]provider.FilterOption, error) {
 	switch filterName {
-	case "person":
+	case types.AttrPerson:
 		return p.getPeopleFilterOptions(ctx)
 	case types.AttrAlbum:
 		return p.getAlbumsFilterOptions(ctx)
@@ -558,8 +558,8 @@ func (p *Provider) FilterCapabilities(ctx context.Context) (map[string]provider.
 			SupportsEq:  true,
 			Description: "Album name",
 		},
-		"person": {
-			Type:        types.AttributeTypeString,
+		types.AttrPerson: {
+			Type:        types.AttributeTypeStringSlice,
 			SupportsEq:  true,
 			Description: "Person (detected faces)",
 		},
@@ -573,10 +573,11 @@ func (p *Provider) AttributeExtensions(ctx context.Context) map[string]types.Att
 	return map[string]types.AttributeDef{
 		// Extend core person attribute with provider-specific UI/behavior
 		types.AttrPerson: {
-			Name:       types.AttrPerson,
-			Type:       types.AttributeTypeString,
-			Filterable: true,
-			Description: "Person (detected faces) - filter handled by Immich API",
+			Name:          types.AttrPerson,
+			Type:          types.AttributeTypeStringSlice,
+			Filterable:    true,
+			Description:   "Person (detected faces) - filter handled by Immich API",
+			AlwaysVisible:  true, // Always show person filter
 			UI: types.UIConfig{
 				Widget:   "multiselect",
 				Icon:     "Users",
