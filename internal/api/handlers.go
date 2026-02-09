@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -71,6 +73,9 @@ func (h *Handlers) RegisterRoutes(router *mux.Router) {
 	// Provider endpoints
 	apiRouter.HandleFunc("/providers", h.ListProviders).Methods("GET")
 	apiRouter.HandleFunc("/providers/status", h.ProvidersStatus).Methods("GET")
+
+	// Thumbnail proxy endpoint
+	apiRouter.HandleFunc("/thumbnail", h.ProxyThumbnail).Methods("GET")
 
 	// Health check
 	apiRouter.HandleFunc("/health", h.Health).Methods("GET")
@@ -508,6 +513,72 @@ func (h *Handlers) Index(w http.ResponseWriter, r *http.Request) {
 			"/health":              "GET - Health check",
 		},
 	})
+}
+
+// ProxyThumbnail proxies a thumbnail image from a provider to avoid CORS issues.
+func (h *Handlers) ProxyThumbnail(w http.ResponseWriter, r *http.Request) {
+	// Get the thumbnail URL from query parameter
+	thumbnailURL := r.URL.Query().Get("url")
+	if thumbnailURL == "" {
+		h.writeError(w, http.StatusBadRequest, "missing url parameter")
+		return
+	}
+
+	// Validate URL format
+	_, err := url.Parse(thumbnailURL)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid url")
+		return
+	}
+
+	// Check if we have any configured providers (basic validation)
+	providers := h.manager.List()
+	if len(providers) == 0 {
+		h.writeError(w, http.StatusServiceUnavailable, "no providers configured")
+		return
+	}
+
+	// Fetch the thumbnail from the provider
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		// Don't follow redirects automatically to avoid security issues
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(thumbnailURL)
+	if err != nil {
+		h.writeError(w, http.StatusBadGateway, fmt.Sprintf("failed to fetch thumbnail: %v", err))
+		return
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		h.writeError(w, http.StatusBadGateway, fmt.Sprintf("provider returned status %d", resp.StatusCode))
+		return
+	}
+
+	// Copy headers from the provider response
+	for key, values := range resp.Header {
+		// Skip certain headers that shouldn't be proxied
+		if key == "Content-Encoding" || key == "Transfer-Encoding" || key == "Connection" {
+			continue
+		}
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
+	// Add CORS headers since this is being proxied
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Copy the image data
+	w.WriteHeader(resp.StatusCode)
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		h.logger.Error().Err(err).Msg("failed to copy thumbnail response")
+	}
 }
 
 // writeJSON writes a JSON response.

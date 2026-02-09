@@ -85,9 +85,10 @@ func (c *Client) updateIndexSettings(ctx context.Context) error {
 			"search_tokens",
 		},
 		FilterableAttributes: []string{
-			"type",
-			"provider",
-			"timestamp",
+			"id",              // Entity ID (transformed format)
+			"type",           // Entity type
+			"provider",       // Source provider
+			"timestamp",      // Entity timestamp
 		},
 		SortableAttributes: []string{
 			"timestamp",
