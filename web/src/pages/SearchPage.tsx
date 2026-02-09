@@ -89,7 +89,7 @@ export function SearchPage() {
 
   return (
     <div className="flex gap-6">
-      <FilterSidebar />
+      <FilterSidebar searchResult={data || undefined} />
 
       <div className="flex-1 min-w-0">
         {hasSearched && (

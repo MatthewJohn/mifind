@@ -32,6 +32,21 @@ export interface SearchResult {
   type_counts: Record<string, number>
   duration_ms: number
   query?: string
+  filters?: FilterResult
+  capabilities?: Record<string, FilterCapability>
+}
+
+export interface FilterCapability {
+  Type: string
+  SupportsEq: boolean
+  SupportsNeq: boolean
+  SupportsRange: boolean
+  SupportsGlob: boolean
+  SupportsContains: boolean
+  Min: number | null
+  Max: number | null
+  Options: FilterOptionValue[] | null
+  Description: string
 }
 
 export interface SearchFacet {

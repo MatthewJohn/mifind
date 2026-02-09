@@ -3,9 +3,13 @@ import { useFilters } from '@/hooks/useSearch'
 import { Filter, HardDrive, Folder, FileType } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useState } from 'react'
-import type { SearchFilter } from '@/types/api'
+import type { SearchFilter, SearchResult } from '@/types/api'
 
-export function FilterSidebar() {
+interface FilterSidebarProps {
+  searchResult?: SearchResult
+}
+
+export function FilterSidebar({ searchResult }: FilterSidebarProps) {
   const {
     isFilterOpen,
     setFilterOpen,
@@ -21,7 +25,13 @@ export function FilterSidebar() {
 
   // Always fetch filters to show available types and capabilities
   // The filters endpoint returns type counts which are useful to see before searching
-  const { data: filterData, isLoading } = useFilters('')
+  // If searchResult is provided with filters/capabilities, use those instead
+  const { data: filterDataFallback, isLoading } = useFilters(searchResult ? undefined : '')
+
+  // Use searchResult filters if available, otherwise fall back to API call
+  const filterData = searchResult
+    ? { filters: searchResult.filters, capabilities: searchResult.capabilities, values: undefined }
+    : filterDataFallback
 
   // Local state for filter inputs
   const [pathFilter, setPathFilter] = useState('')

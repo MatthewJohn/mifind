@@ -19,6 +19,7 @@ import (
 type Provider struct {
 	provider.BaseProvider
 	client *Client
+	logger *zerolog.Logger // Pointer to allow nil/no-op logger
 }
 
 // NewProvider creates a new Immich provider.
@@ -92,16 +93,17 @@ func (p *Provider) Initialize(ctx context.Context, config map[string]any) error 
 	}
 
 	// Create logger if debug is enabled
-	var logger *zerolog.Logger
+	logger := zerolog.Nop()
 	if debug {
 		log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: "15:04:05"}).
 			With().Timestamp().Str("component", "immich").Logger()
-		logger = &log
+		logger = log
 		log.Info().Bool("debug", true).Msg("Immich provider initialized with debug logging")
 	}
+	p.logger = &logger
 
 	// Create client
-	p.client = NewClientWithLogger(url, apiKey, insecureSkipVerify, logger)
+	p.client = NewClientWithLogger(url, apiKey, insecureSkipVerify, &logger)
 
 	// Test connection
 	if err := p.client.Health(ctx); err != nil {
@@ -214,6 +216,14 @@ func (p *Provider) GetRelated(ctx context.Context, id string, relType string) ([
 
 // Search performs a search query on Immich.
 func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]types.Entity, error) {
+	// Debug log search request
+	p.logger.Debug().
+		Str("query", query.Query).
+		Int("limit", query.Limit).
+		Str("type", query.Type).
+		Interface("filters", query.Filters).
+		Msg("Immich: Search request")
+
 	// Extract filters from query
 	var peopleIDs []string
 	var location string
@@ -234,22 +244,37 @@ func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]ty
 				}
 			}
 		}
+		p.logger.Debug().
+			Strs("people_ids", peopleIDs).
+			Msg("Immich: Filter by people")
 	}
 
 	// Handle location filter
 	if locFilter, ok := query.Filters[types.AttrLocation]; ok && locFilter != nil {
 		location = fmt.Sprint(locFilter)
+		p.logger.Debug().
+			Str("location", location).
+			Msg("Immich: Filter by location")
 	}
 
 	// Handle album filter
 	if albumFilter, ok := query.Filters[types.AttrAlbum]; ok && albumFilter != nil {
 		albumID = fmt.Sprint(albumFilter)
+		p.logger.Debug().
+			Str("album_id", albumID).
+			Msg("Immich: Filter by album")
 	}
 
 	searchResult, err := p.client.SearchWithFilters(ctx, query.Query, query.Limit, peopleIDs, location, albumID)
 	if err != nil {
+		p.logger.Error().Err(err).Msg("Immich: Search request failed")
 		return nil, err
 	}
+
+	p.logger.Debug().
+		Int("assets", len(searchResult.Assets.Items)).
+		Int("albums", len(searchResult.Albums.Items)).
+		Msg("Immich: Search response")
 
 	var entities []types.Entity
 
