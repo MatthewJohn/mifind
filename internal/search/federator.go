@@ -44,7 +44,7 @@ type FederatedResult struct {
 // FederatedResponse contains aggregated results from all providers.
 type FederatedResponse struct {
 	Results        []FederatedResult
-	RankedEntities []EntityWithProvider
+	RankedEntities []RankedEntity
 	TotalCount     int
 	TypeCounts     map[string]int
 	HasErrors      bool
@@ -66,7 +66,7 @@ func (f *Federator) Search(ctx context.Context, query SearchQuery) FederatedResp
 	if len(providerNames) == 0 {
 		return FederatedResponse{
 			Results:        []FederatedResult{},
-			RankedEntities: []EntityWithProvider{},
+			RankedEntities: []RankedEntity{},
 			TotalCount:     0,
 			TypeCounts:     make(map[string]int),
 			HasErrors:      false,
@@ -124,21 +124,14 @@ func (f *Federator) Search(ctx context.Context, query SearchQuery) FederatedResp
 	}
 
 	// Rank entities using the configured ranking strategy
-	rankedEntities := allEntities // Default: use unranked
+	rankedEntities := make([]RankedEntity, 0) // Default: empty
 	if f.ranker != nil && len(allEntities) > 0 {
 		ranked, err := f.ranker.Rank(ctx, allEntities, query)
 		if err != nil {
 			f.logger.Warn().Err(err).Msg("Ranking failed, returning unsorted results")
 		} else {
-			// Convert RankedEntity back to FederatedResult format
-			// For now, we'll store ranked entities in a new field
-			rankedEntities = make([]EntityWithProvider, len(ranked))
-			for i, re := range ranked {
-				rankedEntities[i] = EntityWithProvider{
-					Entity:   re.Entity,
-					Provider: re.Provider,
-				}
-			}
+			// Use the ranked results with scores preserved
+			rankedEntities = ranked
 		}
 	}
 

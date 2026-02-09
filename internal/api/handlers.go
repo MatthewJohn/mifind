@@ -129,7 +129,14 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 
 	// Execute search (get all results from providers)
 	response := h.federator.Search(r.Context(), query)
-	result := h.ranker.Rank(response, query)
+
+	// Use the ranked entities from the Federator (which now includes ranking with scores)
+	result := search.RankedResult{
+		Entities:   response.RankedEntities,
+		TotalCount: len(response.RankedEntities),
+		TypeCounts: response.TypeCounts,
+		Duration:   response.Duration,
+	}
 
 	// Apply pagination after ranking
 	limit := req.Limit
