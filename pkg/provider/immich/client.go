@@ -338,22 +338,54 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body io.Re
 
 // doRequest executes an HTTP request and decodes the response.
 func (c *Client) doRequest(req *http.Request, result any) error {
+	if c.logger != nil {
+		c.logger.Debug().
+			Str("method", req.Method).
+			Str("url", req.URL.String()).
+			Msg("Immich: HTTP request")
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		if c.logger != nil {
+			c.logger.Error().Err(err).Msg("Immich: HTTP request failed")
+		}
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if c.logger != nil {
+		c.logger.Debug().
+			Int("status", resp.StatusCode).
+			Str("content_type", resp.Header.Get("Content-Type")).
+			Msg("Immich: HTTP response")
+	}
+
 	// Check status code
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
+		if c.logger != nil {
+			c.logger.Error().
+				Int("status", resp.StatusCode).
+				Str("body", string(body)).
+				Msg("Immich: HTTP error response")
+		}
 		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
 	}
 
 	// Decode response
 	if result != nil {
 		if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+			if c.logger != nil {
+				c.logger.Error().Err(err).Msg("Immich: Failed to decode response")
+			}
 			return fmt.Errorf("failed to decode response: %w", err)
+		}
+
+		if c.logger != nil {
+			c.logger.Debug().
+				RawJSON("response", mustMarshalJSON(result)).
+				Msg("Immich: Parsed response")
 		}
 	}
 

@@ -208,14 +208,33 @@ func (f *Federator) searchProvider(ctx context.Context, providerName string, que
 	providerQuery := query.providerQuery()
 	providerQuery.Filters = filteredFilters
 
+	// Log the outgoing provider request
+	f.logger.Debug().
+		Str("provider", providerName).
+		Str("query", providerQuery.Query).
+		Str("type", providerQuery.Type).
+		Interface("filters", providerQuery.Filters).
+		Int("limit", providerQuery.Limit).
+		Int("offset", providerQuery.Offset).
+		Msg("Sending search request to provider")
+
 	// Execute search
 	entities, err := prov.Search(ctx, providerQuery)
 
-	// Count by type
+	// Count by type for response and logging
 	typeCounts := make(map[string]int)
 	for _, entity := range entities {
 		typeCounts[entity.Type]++
 	}
+
+	// Log the provider response
+	f.logger.Debug().
+		Str("provider", providerName).
+		Err(err).
+		Int("entity_count", len(entities)).
+		Interface("type_counts", typeCounts).
+		Str("duration", time.Since(start).String()).
+		Msg("Received search response from provider")
 
 	return FederatedResult{
 		Provider:   providerName,
