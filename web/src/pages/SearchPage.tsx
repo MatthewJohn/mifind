@@ -10,6 +10,8 @@ import { SearchRequest } from '@/types/api'
 export function SearchPage() {
   const {
     query,
+    searchTriggered,
+    resetSearchTrigger,
     currentPage,
     setCurrentPage,
     resultsPerPage,
@@ -19,17 +21,17 @@ export function SearchPage() {
     filters
   } = useSearchStore()
 
-  // Reset to page 1 when query or filters change
+  // Reset to page 1 when filters change (but not when just query changes)
   useEffect(() => {
     setCurrentPage(1)
-  }, [query, selectedTypes, filters, setCurrentPage])
+  }, [selectedTypes, filters, setCurrentPage])
 
-  // Build search request from store state
+  // Build search request from store state (only when search is triggered)
   const searchRequest: SearchRequest | null = useMemo(() => {
-    if (!query.trim()) return null
+    if (!searchTriggered) return null
 
     const request: SearchRequest = {
-      query: query.trim(),
+      query: query.trim(), // Allow empty queries
       page: currentPage,
       perPage: resultsPerPage,
     }
@@ -53,8 +55,11 @@ export function SearchPage() {
       ]
     }
 
+    // Reset the trigger after building the request
+    resetSearchTrigger()
+
     return request
-  }, [query, currentPage, resultsPerPage, selectedTypes, filters])
+  }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters, resetSearchTrigger])
 
   const { data, isLoading, error } = useSearch(searchRequest)
 
@@ -70,12 +75,15 @@ export function SearchPage() {
 
   const totalPages = data ? Math.ceil(data.total_count / resultsPerPage) : 0
 
+  // Show "no search" state when search hasn't been triggered yet
+  const hasSearched = searchTriggered || data
+
   return (
     <div className="flex gap-6">
       <FilterSidebar />
 
       <div className="flex-1 min-w-0">
-        {query.trim() && (
+        {hasSearched && (
           <div className="mb-4">
             <p className="text-sm text-gray-600">
               {isLoading ? (
@@ -85,6 +93,11 @@ export function SearchPage() {
               ) : data ? (
                 <>
                   Found <span className="font-semibold">{data.total_count}</span> results
+                  {query && (
+                    <span className="text-gray-400 ml-2">
+                      for "{query}"
+                    </span>
+                  )}
                   {data.duration_ms && (
                     <span className="text-gray-400 ml-2">
                       ({data.duration_ms.toFixed(0)}ms)
@@ -121,7 +134,7 @@ export function SearchPage() {
           </div>
         )}
 
-        {!query.trim() && (
+        {!hasSearched && (
           <div className="text-center py-16">
             <div className="text-gray-400 mb-4">
               <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -129,7 +142,7 @@ export function SearchPage() {
               </svg>
             </div>
             <h2 className="text-xl font-semibold text-gray-700 mb-2">Start searching</h2>
-            <p className="text-gray-500">Enter a query above to search across all your content</p>
+            <p className="text-gray-500">Enter a query or set filters, then click Search</p>
           </div>
         )}
       </div>

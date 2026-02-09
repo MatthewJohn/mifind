@@ -5,6 +5,11 @@ interface SearchStore {
   query: string
   setQuery: (query: string) => void
 
+  // Search trigger - search only happens when this is true
+  searchTriggered: boolean
+  triggerSearch: () => void
+  resetSearchTrigger: () => void
+
   currentPage: number
   setCurrentPage: (page: number) => void
   resultsPerPage: number
@@ -34,6 +39,10 @@ interface SearchStore {
 export const useSearchStore = create<SearchStore>((set) => ({
   query: '',
   setQuery: (query) => set({ query }),
+
+  searchTriggered: false,
+  triggerSearch: () => set({ searchTriggered: true, currentPage: 1 }),
+  resetSearchTrigger: () => set({ searchTriggered: false }),
 
   currentPage: 1,
   setCurrentPage: (page) => set({ currentPage: page }),
