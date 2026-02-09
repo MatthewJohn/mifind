@@ -8,6 +8,7 @@ import (
 
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/rs/zerolog"
+	"github.com/yourname/mifind/internal/types"
 	searchpkg "github.com/yourname/mifind/pkg/search"
 )
 
@@ -44,31 +45,46 @@ func (r *MeilisearchRanker) Name() string {
 }
 
 // Rank scores and orders entities using Meilisearch.
-// It performs real-time indexing of entities before searching.
+// Custom attribute filters are applied BEFORE indexing, so Meilisearch
+// only sees relevant entities and can rank them properly.
 func (r *MeilisearchRanker) Rank(ctx context.Context, entities []EntityWithProvider, query SearchQuery) ([]RankedEntity, error) {
 	start := time.Now()
 
-	// Step 1: Index all entities into Meilisearch (real-time upsert)
-	if err := r.indexEntities(ctx, entities); err != nil {
-		r.logger.Warn().Err(err).Msg("Failed to index entities, falling back to basic scoring")
-		return r.fallbackRanking(entities, query), nil
+	// Step 1: Apply custom attribute filters in Go (before indexing)
+	filteredEntities := r.applyAttributeFilters(entities, query)
+
+	if len(filteredEntities) == 0 {
+		// No entities match the filters
+		return []RankedEntity{}, nil
 	}
-
-	// Step 2: Build Meilisearch search request
-	searchReq := r.buildSearchRequest(query)
-
-	// Step 3: Execute search
-	searchResp, err := r.client.Search(query.Query, searchReq)
-	if err != nil {
-		r.logger.Warn().Err(err).Msg("Meilisearch search failed, falling back to basic scoring")
-		return r.fallbackRanking(entities, query), nil
-	}
-
-	// Step 4: Convert results back to RankedEntity
-	ranked := r.convertSearchResults(searchResp, entities)
 
 	r.logger.Debug().
 		Int("input_entities", len(entities)).
+		Int("filtered_entities", len(filteredEntities)).
+		Msg("Applied attribute filters before Meilisearch ranking")
+
+	// Step 2: Index only the filtered entities into Meilisearch
+	if err := r.indexEntities(ctx, filteredEntities); err != nil {
+		r.logger.Warn().Err(err).Msg("Failed to index entities, falling back to basic scoring")
+		return r.fallbackRanking(filteredEntities, query), nil
+	}
+
+	// Step 3: Build Meilisearch search request (only basic filters)
+	searchReq := r.buildSearchRequest(query)
+
+	// Step 4: Execute search
+	searchResp, err := r.client.Search(query.Query, searchReq)
+	if err != nil {
+		r.logger.Warn().Err(err).Msg("Meilisearch search failed, falling back to basic scoring")
+		return r.fallbackRanking(filteredEntities, query), nil
+	}
+
+	// Step 5: Convert results back to RankedEntity
+	ranked := r.convertSearchResults(searchResp, filteredEntities, query)
+
+	r.logger.Debug().
+		Int("input_entities", len(entities)).
+		Int("filtered_entities", len(filteredEntities)).
 		Int("ranked_results", len(ranked)).
 		Dur("duration", time.Since(start)).
 		Msg("Meilisearch ranking completed")
@@ -124,31 +140,33 @@ func (r *MeilisearchRanker) entityToDocument(entity EntityWithProvider) map[stri
 }
 
 // buildSearchRequest constructs a Meilisearch search request from SearchQuery.
+// NOTE: Only pushes basic filters (type, provider) to Meilisearch.
+// Custom attribute filters are applied in Go after getting results,
+// because provider-specific attributes (like person, album) are not
+// pre-configured as filterable in Meilisearch.
 func (r *MeilisearchRanker) buildSearchRequest(query SearchQuery) *meilisearch.SearchRequest {
 	req := &meilisearch.SearchRequest{
 		Limit:  int64(query.Limit),
 		Offset: int64(query.Offset),
 	}
 
-	// Add filters
+	// Only add basic filters that are configured as filterable in Meilisearch
 	filterParts := []string{}
 
-	// Type filter
+	// Type filter (always available)
 	if query.Type != "" {
 		filterParts = append(filterParts, fmt.Sprintf("type = \"%s\"", query.Type))
 	}
 
-	// Provider filter (from TypeWeights map - if only one provider has weight, filter to it)
+	// Provider filter (always available)
 	if len(query.TypeWeights) == 1 {
 		for provider := range query.TypeWeights {
 			filterParts = append(filterParts, fmt.Sprintf("provider = \"%s\"", provider))
 		}
 	}
 
-	// Custom filters
-	for key, val := range query.Filters {
-		filterParts = append(filterParts, r.buildFilterPart(key, val))
-	}
+	// Custom filters are NOT pushed to Meilisearch
+	// They will be applied in Go code after getting results
 
 	if len(filterParts) > 0 {
 		req.Filter = strings.Join(filterParts, " AND ")
@@ -186,7 +204,7 @@ func (r *MeilisearchRanker) buildFilterPart(key string, value any) string {
 }
 
 // convertSearchResults converts Meilisearch search results to RankedEntity.
-func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchResponse, entities []EntityWithProvider) []RankedEntity {
+func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchResponse, entities []EntityWithProvider, query SearchQuery) []RankedEntity {
 	// Create a map of entity ID to EntityWithProvider for quick lookup
 	entityMap := make(map[string]EntityWithProvider)
 	for _, entity := range entities {
@@ -211,9 +229,9 @@ func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchRespons
 			continue
 		}
 
-		// Calculate score based on Meilisearch ranking
-		// Meilisearch doesn't return a score, so we use position as inverse score
-		score := 1.0 // All results from Meilisearch are considered relevant
+		// Calculate score based on Meilisearch ranking position
+		// Meilisearch returns results ranked by relevance, so we use position as inverse score
+		score := 1.0 / float64(len(ranked)+1) // Earlier results get higher scores
 
 		ranked = append(ranked, RankedEntity{
 			Entity:   entity.Entity,
@@ -223,6 +241,111 @@ func (r *MeilisearchRanker) convertSearchResults(resp *meilisearch.SearchRespons
 	}
 
 	return ranked
+}
+
+// applyAttributeFilters applies custom attribute filters to entities in Go.
+// This is done before indexing so Meilisearch only sees relevant entities.
+func (r *MeilisearchRanker) applyAttributeFilters(entities []EntityWithProvider, query SearchQuery) []EntityWithProvider {
+	if len(query.Filters) == 0 {
+		return entities
+	}
+
+	filtered := make([]EntityWithProvider, 0, len(entities))
+
+	for _, entity := range entities {
+		if r.matchesFilters(entity.Entity, query.Filters) {
+			filtered = append(filtered, entity)
+		}
+	}
+
+	return filtered
+}
+
+// matchesFilters checks if an entity matches the given attribute filters.
+func (r *MeilisearchRanker) matchesFilters(entity types.Entity, filters map[string]any) bool {
+	for key, filterVal := range filters {
+		entityVal, exists := entity.Attributes[key]
+		if !exists {
+			return false
+		}
+
+		// Simple equality check for most types
+		if !r.matchValues(entityVal, filterVal) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// matchValues checks if two values match.
+func (r *MeilisearchRanker) matchValues(entityVal, filterVal any) bool {
+	switch ev := entityVal.(type) {
+	case string:
+		if fv, ok := filterVal.(string); ok {
+			return ev == fv
+		}
+		return false
+	case int, int64:
+		fvInt, ok := asInt64(filterVal)
+		if !ok {
+			return false
+		}
+		return ev == int(fvInt)
+	case float64:
+		fvFloat, ok := filterVal.(float64)
+		if !ok {
+			return false
+		}
+		return ev == fvFloat
+	case bool:
+		fvBool, ok := filterVal.(bool)
+		if !ok {
+			return false
+		}
+		return ev == fvBool
+	case []string:
+		fvSlice, ok := filterVal.([]string)
+		if !ok {
+			// Check if filter value is in the entity slice
+			fvStr, ok := filterVal.(string)
+			if !ok {
+				return false
+			}
+			for _, item := range ev {
+				if item == fvStr {
+					return true
+				}
+			}
+			return false
+		}
+		// Check if slices have any overlap
+		for _, eItem := range ev {
+			for _, fItem := range fvSlice {
+				if eItem == fItem {
+					return true
+				}
+			}
+		}
+		return false
+	default:
+		// Fallback to string comparison
+		return fmt.Sprintf("%v", ev) == fmt.Sprintf("%v", filterVal)
+	}
+}
+
+// asInt64 converts a value to int64.
+func asInt64(v any) (int64, bool) {
+	switch val := v.(type) {
+	case int:
+		return int64(val), true
+	case int64:
+		return val, true
+	case float64:
+		return int64(val), true
+	default:
+		return 0, false
+	}
 }
 
 // fallbackRanking provides basic ranking when Meilisearch fails.
