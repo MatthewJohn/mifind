@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect } from 'react'
+import { useMemo, useCallback, useEffect, useRef } from 'react'
 import { useSearchStore } from '@/stores/searchStore'
 import { useSearch } from '@/hooks/useSearch'
 import { SearchResults } from '@/components/search/SearchResults'
@@ -21,6 +21,9 @@ export function SearchPage() {
     filters
   } = useSearchStore()
 
+  // Track if we've ever performed a search (to show results persistently)
+  const hasEverSearched = useRef(false)
+
   // Reset to page 1 when filters change (but not when just query changes)
   useEffect(() => {
     setCurrentPage(1)
@@ -29,6 +32,9 @@ export function SearchPage() {
   // Build search request from store state (only when search is triggered)
   const searchRequest: SearchRequest | null = useMemo(() => {
     if (!searchTriggered) return null
+
+    // Mark that we've performed at least one search
+    hasEverSearched.current = true
 
     const request: SearchRequest = {
       query: query.trim(), // Allow empty queries
@@ -55,11 +61,19 @@ export function SearchPage() {
       ]
     }
 
-    // Reset the trigger after building the request
-    resetSearchTrigger()
+    // Note: We DON'T reset the trigger here to avoid infinite re-renders
+    // The trigger will be reset after the request is "consumed" by the search hook
 
     return request
-  }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters, resetSearchTrigger])
+  }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters])
+
+  // Reset the trigger after the search request is created
+  // This ensures the request object is stable during the render
+  useEffect(() => {
+    if (searchRequest !== null) {
+      resetSearchTrigger()
+    }
+  }, [searchRequest, resetSearchTrigger])
 
   const { data, isLoading, error } = useSearch(searchRequest)
 
@@ -76,7 +90,7 @@ export function SearchPage() {
   const totalPages = data ? Math.ceil(data.total_count / resultsPerPage) : 0
 
   // Show "no search" state when search hasn't been triggered yet
-  const hasSearched = searchTriggered || data
+  const hasSearched = hasEverSearched.current || data
 
   return (
     <div className="flex gap-6">
