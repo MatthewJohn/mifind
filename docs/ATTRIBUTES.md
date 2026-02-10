@@ -85,38 +85,64 @@ type FilterConfig struct {
 
 The `ValueSource` field determines where filter values come from:
 
-**`FilterValueResultBased`** (default)
-- Values extracted from **current search results**
-- Use for: Attributes where values vary by search context
-- Examples: `extension`, `mime_type` (only show extensions present in results)
-- Behavior: Shows only values that appear in current paginated results
+**`FilterValueFromEntities`** (default)
+- Values extracted from **current search results ONLY**
+- No provider pre-fetch
+- Use for: Attributes where values depend entirely on search context
+- Examples: `extension`, `size`, `mime_type` (only show what's in results)
+- Behavior: Shows only values present in current paginated results
+- NOT cached (varies by search)
 
-**`FilterValueProviderBased`**
-- Values from **pre-obtained provider lists**
-- Use for: Attributes where provider has complete list
-- Examples: `location.city`, `person`, `album` (provider knows all options)
-- Behavior: Shows all values from provider, with result counts
+**`FilterValueFromProvider`**
+- Values from **provider's complete list** (cached)
+- Counts from provider totals, NOT contextual to search
+- Use for: Static lists where counts don't change based on search
+- Examples: `person`, `album` (provider has complete list, counts don't vary)
+- Behavior: Shows all provider options with provider's total counts
+- Cached for 24h
+
+**`FilterValueHybrid`**
+- Values from **provider's complete list** (cached)
+- Counts from **current search results** (contextual)
+- Use for: Provider-based lists where you want all options but contextual counts
+- Examples: `location.city`, `location.state`, `location.country`
+- Behavior: Shows all provider options, counts update based on search (0 if not in results)
+- Cached for 24h
 
 **Decision Tree:**
 ```
-Does the provider have a complete list of all possible values?
-├─ Yes → Use FilterValueProviderBased
-│  ├─ Provider API has endpoint? → Use that
-│  └─ Need to extract from all entities? → Cache during discovery
-└─ No → Use FilterValueResultBased
+Does the provider have a complete, enumerable list of all possible values?
+├─ Yes → Provider-based (which one?)
+│  ├─ Do counts vary based on search context?
+│  │  ├─ Yes → FilterValueHybrid (provider list + entity counts)
+│  │  └─ No → FilterValueFromProvider (provider list + provider totals)
+│  └─ Examples: cities (Hybrid), people/albums (FromProvider)
+└─ No → FilterValueFromEntities
    └─ Values extracted from current search results
+   └─ Examples: extension, size, mime_type
 ```
+
+**Behavior Comparison Table:**
+
+| Attribute Type | List Source | Count Source | Cached? | Shows 0-count options? |
+|----------------|-------------|--------------|---------|----------------------|
+| FromEntities | Search results | Search results | No | Only if in results |
+| FromProvider | Provider API | Provider totals | Yes (24h) | Always (all options) |
+| Hybrid | Provider API | Search results | Yes (24h) | If ShowZeroCount=true |
 
 #### ShowZeroCount
 
-When `ValueSource` is `FilterValueProviderBased`:
+When `ValueSource` is `FilterValueHybrid`:
+- `ShowZeroCount: true` - Show all provider options even if count is 0 in results (e.g., all cities)
+- `ShowZeroCount: false` - Hide options with 0 count (only show cities present in results)
 
-- `ShowZeroCount: true` - Show all options even if 0 in current results (e.g., all countries)
-- `ShowZeroCount: false` - Hide options with 0 count (e.g., hide unused albums)
+When `ValueSource` is `FilterValueFromEntities` or `FilterValueFromProvider`:
+- Has no effect (FromEntities only shows what's in results, FromProvider always shows all)
 
 **Rule of thumb:**
-- **Geographic/Reference data**: `ShowZeroCount: true` (cities, countries, states)
-- **User-generated collections**: `ShowZeroCount: false` (albums, playlists)
+- **Geographic/Reference data** (cities, countries, states): `ValueSource: Hybrid` + `ShowZeroCount: true`
+- **User-generated collections** (albums, playlists): `ValueSource: FromProvider` + `ShowZeroCount: false`
+- **Result-dependent attributes** (extensions, sizes): `ValueSource: FromEntities` + `ShowZeroCount: false`
 
 #### ProviderLevel
 
@@ -258,7 +284,7 @@ var AttrDefLocationCity = AttributeDef{
         SupportsContains: true,
         Cacheable:        true,
         CacheTTL:         24 * time.Hour,
-        ValueSource:      FilterValueProviderBased,
+        ValueSource:      FilterValueHybrid,  // Provider list + entity counts
         ShowZeroCount:    true,
     },
 }
@@ -289,7 +315,7 @@ func (p *Provider) AttributeExtensions(ctx context.Context) map[string]types.Att
                 Cacheable:        true,
                 CacheTTL:         24 * time.Hour,
                 ProviderLevel:    true,  // Filtered by Immich API
-                ValueSource:      types.FilterValueProviderBased,  // Must match core!
+                ValueSource:      types.FilterValueHybrid,  // Provider list + entity counts
                 ShowZeroCount:    true,  // Must match core!
             },
         },
@@ -300,8 +326,8 @@ func (p *Provider) AttributeExtensions(ctx context.Context) map[string]types.Att
 **Decisions made:**
 - ✅ Core definition exists - common concept
 - ✅ Provider extension adds `ProviderLevel: true` - Immich handles filtering
-- ✅ Provider-based values - Immich API has complete city list
-- ✅ ShowZeroCount - show all cities even if none in results
+- ✅ Hybrid value source - Provider list + contextual entity counts
+- ✅ ShowZeroCount - show all cities even if none in current results
 - ✅ Select widget - single location selection
 - ✅ Cacheable - city list changes infrequently
 
@@ -325,11 +351,11 @@ var AttrDefPerson = AttributeDef{
         Priority: 41,
     },
     Filter: FilterConfig{
-        SupportsEq:  true,
-        Cacheable:   true,
-        CacheTTL:    24 * time.Hour,
+        SupportsEq:    true,
+        Cacheable:     true,
+        CacheTTL:      24 * time.Hour,
         ProviderLevel: true,  // Filtered by provider API
-        ValueSource:   FilterValueProviderBased,
+        ValueSource:   FilterValueFromProvider,  // Provider list with provider totals
         ShowZeroCount: true,
     },
 }
@@ -339,7 +365,7 @@ var AttrDefPerson = AttributeDef{
 - ✅ StringSlice type - multiple people per photo
 - ✅ Multiselect widget - can select multiple people
 - ✅ Always visible - important discovery filter
-- ✅ Provider-based - provider has complete person list
+- ✅ FromProvider value source - Provider list with provider totals (not contextual)
 - ✅ Provider-level - provider API handles filtering
 
 ### Example 4: Result-Based Extension Filter
@@ -365,16 +391,16 @@ var AttrDefExtension = AttributeDef{
         SupportsEq:    true,
         SupportsNeq:   true,
         Cacheable:     false,  // Don't cache - varies by search
-        ValueSource:   types.FilterValueResultBased,  // From results
+        ValueSource:   types.FilterValueFromEntities,  // Extract from results only
         ShowZeroCount: false,  // Hide unused extensions
     },
 }
 ```
 
 **Decisions made:**
-- ✅ Result-based - only show extensions in current results
+- ✅ FromEntities value source - only show extensions in current results
 - ✅ Not cacheable - varies by search context
-- ✅ Hide zero-count - don't show extensions with 0 results
+- ✅ ShowZeroCount false - don't show extensions with 0 results
 - ✅ Select widget - single extension selection
 
 ## Provider Extension Best Practices
@@ -487,10 +513,10 @@ type FilterOption struct {
 
 ### Pitfall 5: Cacheable Without ValueSource
 
-❌ **Wrong:** `Cacheable: true` with default `ValueSource: ResultBased`
+❌ **Wrong:** `Cacheable: true` with `ValueSource: FromEntities`
 - Result: Caches values that vary by search query
 
-✅ **Right:** Only cache when using `ValueSource: ProviderBased`
+✅ **Right:** Only cache when using `ValueSource: FromProvider` or `ValueSource: Hybrid`
 
 ## Testing Checklist
 
@@ -541,7 +567,7 @@ var AttrDefMyAttribute = AttributeDef{
         Cacheable:        false,
         CacheTTL:         0,
         ProviderLevel:    false,
-        ValueSource:      FilterValueResultBased,
+        ValueSource:      FilterValueFromEntities,  // Choose: FromEntities, FromProvider, Hybrid
         ShowZeroCount:    false,
     },
 }
