@@ -8,6 +8,7 @@ export function useSearch(searchRequest: SearchRequest | null) {
     queryFn: () => searchApi.search(searchRequest!),
     enabled: !!searchRequest, // Allow empty queries
     staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
   })
 }
 

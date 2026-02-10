@@ -8,6 +8,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
       retry: 1,
+      refetchOnWindowFocus: false, // Don't auto-refresh when tab regains focus
     },
   },
 })
