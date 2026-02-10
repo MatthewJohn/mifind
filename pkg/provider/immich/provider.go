@@ -257,13 +257,13 @@ func (p *Provider) Search(ctx context.Context, query provider.SearchQuery) ([]ty
 			Msg("Immich: Filter by city")
 	}
 	if stateFilter, ok := query.Filters[types.AttrLocationState]; ok && stateFilter != nil {
-		city = fmt.Sprint(stateFilter)
+		state = fmt.Sprint(stateFilter)
 		p.logger.Debug().
 			Str("state", state).
 			Msg("Immich: Filter by state")
 	}
 	if countryFilter, ok := query.Filters[types.AttrLocationCountry]; ok && countryFilter != nil {
-		city = fmt.Sprint(countryFilter)
+		country = fmt.Sprint(countryFilter)
 		p.logger.Debug().
 			Str("country", country).
 			Msg("Immich: Filter by country")
