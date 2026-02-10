@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useSearchStore } from '@/stores/searchStore'
 import type { SearchFilter } from '@/types/api'
@@ -23,6 +23,9 @@ export function useSearchSync() {
     searchTriggered,
     triggerSearch,
   } = useSearchStore()
+
+  // Track if we've done a search (for URL updates)
+  const hasSearched = useRef(false)
 
   // Initialize store from URL params on mount
   useEffect(() => {
@@ -66,14 +69,22 @@ export function useSearchSync() {
       if (urlQuery || urlFilters.length > 0 || urlTypes.length > 0) {
         // Small delay to ensure store is updated
         setTimeout(() => triggerSearch(), 0)
+        hasSearched.current = true
       }
     }
   }, []) // Run once on mount
 
+  // Track when search is triggered
+  useEffect(() => {
+    if (searchTriggered) {
+      hasSearched.current = true
+    }
+  }, [searchTriggered])
+
   // Update URL params when store state changes
   useEffect(() => {
-    // Don't update URL until user has triggered a search
-    if (!searchTriggered) {
+    // Don't update URL until user has triggered a search at least once
+    if (!hasSearched.current) {
       return
     }
 
