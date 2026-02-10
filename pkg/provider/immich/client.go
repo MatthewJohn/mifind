@@ -69,15 +69,26 @@ func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int,
 			Msg("Immich: Search request")
 	}
 
-	// Immich uses /api/search/metadata for smart search with metadata
-	url := fmt.Sprintf("%s/api/search/metadata", c.baseURL)
+	// Use /api/search/smart for text queries, /api/search/metadata for filter-only searches
+	// /api/search/smart includes exifInfo and supports text search
+	// /api/search/metadata includes exifInfo but does NOT support text query
+	var url string
+	if query != "" {
+		url = fmt.Sprintf("%s/api/search/smart", c.baseURL)
+	} else {
+		url = fmt.Sprintf("%s/api/search/metadata", c.baseURL)
+	}
 
 	// Build search request body
 	reqBody := map[string]any{
 		"page":      1,
-		"pageSize":  limit,
-		"query":     query,
-		"algorithm": "smart", // Use smart search
+		"size":      limit,
+		"isVisible": true, // Only search visible assets
+	}
+
+	// Add query (only for /api/search/smart)
+	if query != "" {
+		reqBody["query"] = query
 	}
 
 	// Add people filter if specified
@@ -125,15 +136,32 @@ func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int,
 	return &result, nil
 }
 
+// GetCitySearch performs a search to get assets with location data for filter values.
+// Uses /api/search/metadata with withExif=true to get location information.
+// Note: This may not return all assets - consider using a large size limit or pagination
+// to get accurate counts for location filters.
 func (c *Client) GetCitySearch(ctx context.Context) ([]Asset, error) {
-	url := fmt.Sprintf("%s/api/search/cities", c.baseURL)
+	url := fmt.Sprintf("%s/api/search/metadata", c.baseURL)
 
-	var result []Asset
-	if err := c.doGet(ctx, url, &result); err != nil {
-		return nil, fmt.Errorf("get asset failed: %w", err)
+	// Use a large size to get more assets for accurate location counts
+	// In production, you might want to paginate through all results
+	reqBody := map[string]any{
+		"page":      1,
+		"size":      1000, // Large sample for location filter values
+		"isVisible": true,
+		"withExif":  true, // Only get assets with EXIF for location filters
 	}
 
-	return result, nil
+	var result SearchResponse
+	if err := c.doPost(ctx, url, reqBody, &result); err != nil {
+		return nil, fmt.Errorf("get city search failed: %w", err)
+	}
+
+	if result.Assets == nil {
+		return []Asset{}, nil
+	}
+
+	return result.Assets.Items, nil
 }
 
 // mustMarshalJSON marshals to JSON or panics.
