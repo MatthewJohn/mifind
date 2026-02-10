@@ -316,22 +316,22 @@ export function FilterSidebar({ searchResult }: FilterSidebarProps) {
                               // Multi-select for people using checkboxes
                               <div className="max-h-40 overflow-y-auto border border-gray-200 rounded p-2 space-y-1">
                                 {options.map((opt: any) => (
-                                  <label key={opt.Value} className="flex items-center gap-2 cursor-pointer group text-xs">
+                                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer group text-xs">
                                     <input
                                       type="checkbox"
-                                      checked={currentFilterValues.includes(opt.Value)}
+                                      checked={currentFilterValues.includes(opt.value)}
                                       onChange={(e) => {
                                         if (e.target.checked) {
-                                          addFilter({ key, operator: 'eq', value: opt.Value })
+                                          addFilter({ key, operator: 'eq', value: opt.value })
                                         } else {
                                           // Remove this specific value
-                                          const filterToRemove = filters.find(f => f.key === key && String(f.value) === opt.Value)
+                                          const filterToRemove = filters.find(f => f.key === key && String(f.value) === opt.value)
                                           if (filterToRemove) {
                                             // Note: we'd need to enhance removeFilter to handle by key+value
                                             // For now, just remove all and re-add the others
                                             removeFiltersByKey(key)
                                             currentFilterValues
-                                              .filter(v => v !== opt.Value)
+                                              .filter(v => v !== opt.value)
                                               .forEach(v => addFilter({ key, operator: 'eq', value: v }))
                                           }
                                         }
@@ -339,7 +339,12 @@ export function FilterSidebar({ searchResult }: FilterSidebarProps) {
                                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     />
                                     <span className="text-gray-600 group-hover:text-gray-900">
-                                      {opt.Label || opt.Value}
+                                      {opt.label || opt.value}
+                                      {opt.count > 0 && (
+                                        <span className="text-gray-400">
+                                          {' '}({opt.count}{opt.has_more ? '+' : ''})
+                                        </span>
+                                      )}
                                     </span>
                                   </label>
                                 ))}
@@ -361,9 +366,9 @@ export function FilterSidebar({ searchResult }: FilterSidebarProps) {
                               >
                                 <option value="">All</option>
                                 {options.map((opt: any) => (
-                                  <option key={opt.Value} value={opt.Value}>
-                                    {opt.Label || opt.Value}
-                                    {opt.Count > 0 ? ` (${opt.Count})` : ''}
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label || opt.value}
+                                    {opt.count > 0 ? ` (${opt.count}${opt.has_more ? '+' : ''})` : ''}
                                   </option>
                                 ))}
                               </select>
