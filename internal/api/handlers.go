@@ -208,8 +208,20 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 	typedQuery.MaxDepth = req.MaxDepth
 	// Don't set typedQuery.Limit/Offset - we'll paginate after ranking
 
+	// Debug log the type filter
+	h.logger.Debug().
+		Str("req_type", req.Type).
+		Str("typedQuery_type", typedQuery.Type).
+		Msg("Search request type filter")
+
 	// Convert to legacy search query for federator
 	query := typedQuery.ToSearchQuery()
+
+	// Debug log the query type after conversion
+	h.logger.Debug().
+		Str("query.Type", query.Type).
+		Interface("query.Filters", query.Filters).
+		Msg("Search query after ToSearchQuery conversion")
 
 	// Execute search (get all results from providers)
 	response := h.federator.Search(r.Context(), query)
