@@ -29,6 +29,9 @@ export function SearchPage() {
   // Track if we've ever triggered a search
   const hasEverSearched = useRef(false)
 
+  // Track if we're actively performing a search (for spinner)
+  const isSearching = useRef(false)
+
   // Auto-trigger search when filters change (after initial search)
   const prevFiltersRef = useRef<typeof filters>([])
   const prevTypesRef = useRef<typeof selectedTypes>([])
@@ -58,6 +61,7 @@ export function SearchPage() {
     if (!searchTriggered) return null
 
     hasEverSearched.current = true
+    isSearching.current = true
 
     const request: SearchRequest = {
       query: query.trim(),
@@ -96,6 +100,13 @@ export function SearchPage() {
 
   const { data, isLoading, error } = useSearch(searchRequest)
 
+  // Update isSearching when loading state changes
+  useEffect(() => {
+    if (!isLoading && isSearching.current) {
+      isSearching.current = false
+    }
+  }, [isLoading])
+
   const handleEntityClick = useCallback((entity: any) => {
     setSelectedEntity(entity)
   }, [setSelectedEntity])
@@ -108,8 +119,10 @@ export function SearchPage() {
 
   const totalPages = data ? Math.ceil(data.total_count / resultsPerPage) : 0
 
-  // Show results when we have data OR when loading a search
+  // Determine what to show
   const hasSearched = hasEverSearched.current
+  const showLoading = isLoading || isSearching.current
+  const hasResults = data && data.entities && data.entities.length > 0
 
   return (
     <div className="flex gap-6">
@@ -119,7 +132,7 @@ export function SearchPage() {
         {hasSearched && (
           <div className="mb-4">
             <p className="text-sm text-gray-600">
-              {isLoading ? (
+              {showLoading ? (
                 'Searching...'
               ) : error ? (
                 <span className="text-red-600">Error searching</span>
@@ -148,11 +161,24 @@ export function SearchPage() {
         )}
 
         {hasSearched ? (
-          <SearchResults
-            entities={data?.entities || []}
-            loading={isLoading}
-            onEntityClick={handleEntityClick}
-          />
+          <>
+            {showLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0654ba]"></div>
+              </div>
+            ) : hasResults ? (
+              <SearchResults
+                entities={data.entities}
+                loading={false}
+                onEntityClick={handleEntityClick}
+              />
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-500 text-lg">No results found</p>
+                <p className="text-gray-400 text-sm mt-2">Try adjusting your search or filters</p>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-16">
             <div className="text-gray-400 mb-4">
