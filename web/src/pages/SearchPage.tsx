@@ -53,9 +53,10 @@ export function SearchPage() {
   }, [filters, selectedTypes, setCurrentPage, triggerSearch])
 
   // Build search request from store state
+  // IMPORTANT: query is NOT in dependencies - typing should NOT trigger search
   const searchRequest: SearchRequest | null = useMemo(() => {
-    // Only build request when explicitly triggered, OR if we've searched before (keep active)
-    if (!searchTriggered && !hasEverSearchedRef.current) return null
+    // Only build request when search is explicitly triggered
+    if (!searchTriggered) return null
 
     // Mark that we've searched (persists for the session)
     hasEverSearchedRef.current = true
@@ -86,7 +87,7 @@ export function SearchPage() {
     }
 
     return request
-  }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters])
+  }, [searchTriggered, currentPage, resultsPerPage, selectedTypes, filters])
 
   // Reset search trigger after building request (it's been captured by keepSearchingRef)
   useEffect(() => {
