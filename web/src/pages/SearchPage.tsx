@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect, useRef } from 'react'
+import { useMemo, useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchStore } from '@/stores/searchStore'
 import { useSearch } from '@/hooks/useSearch'
 import { useSearchSync } from '@/hooks/useSearchSync'
@@ -30,7 +30,7 @@ export function SearchPage() {
   const hasEverSearched = useRef(false)
 
   // Track if we're actively performing a search (for spinner)
-  const isSearching = useRef(false)
+  const [isSearching, setIsSearching] = useState(false)
 
   // Auto-trigger search when filters change (after initial search)
   const prevFiltersRef = useRef<typeof filters>([])
@@ -61,7 +61,7 @@ export function SearchPage() {
     if (!searchTriggered) return null
 
     hasEverSearched.current = true
-    isSearching.current = true
+    setIsSearching(true)
 
     const request: SearchRequest = {
       query: query.trim(),
@@ -89,7 +89,7 @@ export function SearchPage() {
     }
 
     return request
-  }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters])
+  }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters, triggerSearch])
 
   // Reset search trigger after building request
   useEffect(() => {
@@ -100,24 +100,25 @@ export function SearchPage() {
 
   const { data, isLoading, error } = useSearch(searchRequest)
 
-  // Debug: log data when it changes
+  // Reset isSearching when loading completes
   useEffect(() => {
-    console.log('Search data:', data)
-    console.log('isLoading:', isLoading)
-    console.log('searchRequest:', searchRequest)
-    if (data) {
-      console.log('data.entities:', data.entities)
-      console.log('data.entities length:', data.entities?.length)
-      console.log('data keys:', Object.keys(data))
+    if (!isLoading && isSearching) {
+      setIsSearching(false)
     }
-  }, [data, isLoading, searchRequest])
+  }, [isLoading, isSearching])
 
-  // Update isSearching when loading state changes
+  // Debug logging
   useEffect(() => {
-    if (!isLoading && isSearching.current) {
-      isSearching.current = false
-    }
-  }, [isLoading])
+    console.log('Render state:', {
+      hasEverSearched: hasEverSearched.current,
+      isSearching,
+      isLoading,
+      searchRequest: searchRequest ? 'exists' : null,
+      data,
+      dataEntities: data?.entities,
+      dataEntitiesLength: data?.entities?.length,
+    })
+  })
 
   const handleEntityClick = useCallback((entity: any) => {
     setSelectedEntity(entity)
@@ -133,7 +134,7 @@ export function SearchPage() {
 
   // Determine what to show
   const hasSearched = hasEverSearched.current
-  const showLoading = isLoading || isSearching.current
+  const showLoading = isLoading || isSearching
   const hasResults = data && data.entities && data.entities.length > 0
 
   return (
