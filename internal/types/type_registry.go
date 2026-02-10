@@ -55,12 +55,26 @@ type UIConfig struct {
 type FilterValueSource string
 
 const (
-	// FilterValueResultBased: Extract values from current search results.
-	FilterValueResultBased FilterValueSource = "result"
+	// FilterValueFromEntities: Extract values from current search results ONLY.
+	// Use for attributes that depend entirely on what's in the results (e.g., file extensions).
+	// No provider pre-fetch - values come exclusively from entity attributes.
+	FilterValueFromEntities FilterValueSource = "entities"
 
-	// FilterValueProviderBased: Use pre-obtained list from provider.
-	// Merges provider values with result counts for display.
-	FilterValueProviderBased FilterValueSource = "provider"
+	// FilterValueFromProvider: Use pre-obtained list from provider ONLY.
+	// Shows all provider options with provider's total counts.
+	// Use for relatively static lists where counts don't change based on search.
+	// NOT contextual to current search results.
+	FilterValueFromProvider FilterValueSource = "provider"
+
+	// FilterValueHybrid: Use provider list, but update counts from search results.
+	// Shows all provider options (from cached provider.FilterValues()).
+	// Counts are contextual: show how many results have each value (0 if not in results).
+	// Use for provider-based lists where you want all options but contextual counts.
+	FilterValueHybrid FilterValueSource = "hybrid"
+
+	// Deprecated aliases for backward compatibility
+	FilterValueResultBased   = FilterValueFromEntities  // Old name
+	FilterValueProviderBased = FilterValueHybrid         // Old name (was hybrid-like behavior)
 )
 
 // FilterConfig describes how filtering works for an attribute.
@@ -91,11 +105,16 @@ type FilterConfig struct {
 	ProviderLevel bool
 
 	// ValueSource specifies where filter values come from.
-	// Defaults to FilterValueResultBased if not set.
+	// - FilterValueFromEntities: Extract from search results only
+	// - FilterValueFromProvider: Use provider list with provider totals
+	// - FilterValueHybrid: Provider list + contextual result counts
+	// Defaults to FilterValueFromEntities if not set.
 	ValueSource FilterValueSource
 
 	// ShowZeroCount indicates whether to show filter options with zero count.
-	// Only meaningful when ValueSource is FilterValueProviderBased.
+	// For FilterValueHybrid: Show all provider options even if count is 0 in results
+	// For FilterValueFromProvider: Has no effect (always shows all)
+	// For FilterValueFromEntities: Has no effect (only shows what's in results)
 	ShowZeroCount bool
 }
 

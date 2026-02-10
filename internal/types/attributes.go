@@ -292,7 +292,7 @@ var (
 			SupportsEq:    true,
 			SupportsNeq:   true,
 			Cacheable:     false,
-			ValueSource:   FilterValueResultBased,
+			ValueSource:   FilterValueFromEntities,
 			ShowZeroCount: false,
 		},
 	}
@@ -401,7 +401,7 @@ var (
 			SupportsContains: true,
 			Cacheable:        true,
 			CacheTTL:         24 * time.Hour,
-			ValueSource:      FilterValueProviderBased,
+			ValueSource:      FilterValueHybrid,
 			ShowZeroCount:    true,
 		},
 	}
@@ -426,7 +426,7 @@ var (
 			SupportsContains: true,
 			Cacheable:        true,
 			CacheTTL:         24 * time.Hour,
-			ValueSource:      FilterValueProviderBased,
+			ValueSource:      FilterValueHybrid,
 			ShowZeroCount:    true,
 		},
 	}
@@ -451,7 +451,7 @@ var (
 			SupportsContains: true,
 			Cacheable:        true,
 			CacheTTL:         24 * time.Hour,
-			ValueSource:      FilterValueProviderBased,
+			ValueSource:      FilterValueHybrid,
 			ShowZeroCount:    true,
 		},
 	}
@@ -500,7 +500,7 @@ var (
 			Cacheable:     true,
 			CacheTTL:      24 * time.Hour,
 			ProviderLevel: true, // Filtered by provider APIs (e.g., Immich, Google Photos)
-			ValueSource:   FilterValueProviderBased,
+			ValueSource:   FilterValueFromProvider,
 			ShowZeroCount: true,
 		},
 	}

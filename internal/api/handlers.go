@@ -702,8 +702,12 @@ func (h *Handlers) getPreObtainedFilterValues(_ context.Context, capabilities ma
 }
 
 // mergeFilterValues merges pre-obtained provider values with result-based counts.
-// For provider-based filters, shows all pre-obtained values with result counts.
-// Sets HasMore=true when provider count > result count.
+// Behavior depends on the attribute's ValueSource:
+//
+// FilterValueFromEntities: Ignore provider values, extract from results only
+// FilterValueFromProvider: Use provider list with provider counts (not contextual)
+// FilterValueHybrid: Use provider list with contextual result counts
+//
 // isBlankSearch indicates if query was empty or no search performed.
 func (h *Handlers) mergeFilterValues(
 	preObtained map[string][]provider.FilterOption,
@@ -717,65 +721,122 @@ func (h *Handlers) mergeFilterValues(
 
 	for attrName, providerOptions := range preObtained {
 		attrDef, exists := allAttrs[attrName]
-		if !exists || attrDef.Filter.ValueSource != types.FilterValueProviderBased {
-			// Not provider-based, use as-is
+		if !exists {
+			// Unknown attribute, use provider values as-is
 			merged[attrName] = providerOptions
 			continue
 		}
 
-		// For blank search, show all provider options with their counts
-		if isBlankSearch {
+		// Handle based on ValueSource (default to FromEntities if not set)
+		valueSource := attrDef.Filter.ValueSource
+		if valueSource == "" {
+			valueSource = types.FilterValueFromEntities
+		}
+
+		switch valueSource {
+		case types.FilterValueFromEntities:
+			// Extract from search results only, ignore provider values
+			merged[attrName] = h.extractFromEntities(resultFilters, attrName)
+
+		case types.FilterValueFromProvider:
+			// Use provider list with provider totals (not contextual)
+			// For blank search or regular search, show all provider options
 			sortedOptions := make([]provider.FilterOption, len(providerOptions))
 			copy(sortedOptions, providerOptions)
 			sort.Slice(sortedOptions, func(i, j int) bool {
 				return sortedOptions[i].Label < sortedOptions[j].Label
 			})
 			merged[attrName] = sortedOptions
-			continue
+
+		case types.FilterValueHybrid:
+			// Provider list + contextual result counts
+			merged[attrName] = h.mergeProviderWithEntityCounts(providerOptions, resultFilters, attrName, attrDef.Filter.ShowZeroCount, isBlankSearch)
+
+		default:
+			// Unknown value source, use provider values as-is
+			merged[attrName] = providerOptions
 		}
-
-		// Build a map of result counts by value
-		resultCounts := make(map[string]int)
-		for _, filterDef := range resultFilters.Filters {
-			if filterDef.Name == attrName {
-				for _, opt := range filterDef.Options {
-					resultCounts[opt.Value] = opt.Count
-				}
-				break
-			}
-		}
-
-		// Merge: keep provider options based on ShowZeroCount, update counts from results
-		var mergedOptions []provider.FilterOption
-		for _, providerOpt := range providerOptions {
-			resultCount := resultCounts[providerOpt.Value]
-
-			// Use result count (0 if not in current search results)
-			// For provider-based filters, this shows contextual counts from the current search
-			displayCount := resultCount
-
-			// Skip if count is 0 and ShowZeroCount is false
-			if displayCount == 0 && !attrDef.Filter.ShowZeroCount {
-				continue
-			}
-
-			mergedOptions = append(mergedOptions, provider.FilterOption{
-				Value:   providerOpt.Value,
-				Label:   providerOpt.Label,
-				Count:   displayCount,
-				HasMore: resultCount > 0 && resultCount < providerOpt.Count,
-			})
-		}
-
-		// Sort merged options alphabetically
-		sort.Slice(mergedOptions, func(i, j int) bool {
-			return mergedOptions[i].Label < mergedOptions[j].Label
-		})
-
-		merged[attrName] = mergedOptions
 	}
 
 	return merged
+}
+
+// extractFromEntities extracts filter values from search results only.
+// Used for FilterValueFromEntities attributes.
+func (h *Handlers) extractFromEntities(resultFilters search.FilterResult, attrName string) []provider.FilterOption {
+	for _, filterDef := range resultFilters.Filters {
+		if filterDef.Name == attrName {
+			sortedOptions := make([]provider.FilterOption, len(filterDef.Options))
+			for i, opt := range filterDef.Options {
+				sortedOptions[i] = provider.FilterOption{
+					Value: opt.Value,
+					Label: opt.Label,
+					Count: opt.Count,
+				}
+			}
+			sort.Slice(sortedOptions, func(i, j int) bool {
+				return sortedOptions[i].Label < sortedOptions[j].Label
+			})
+			return sortedOptions
+		}
+	}
+	return []provider.FilterOption{}
+}
+
+// mergeProviderWithEntityCounts merges provider list with contextual entity counts.
+// Used for FilterValueHybrid attributes.
+func (h *Handlers) mergeProviderWithEntityCounts(
+	providerOptions []provider.FilterOption,
+	resultFilters search.FilterResult,
+	attrName string,
+	showZeroCount bool,
+	isBlankSearch bool,
+) []provider.FilterOption {
+	// For blank search, show all provider options with provider counts
+	if isBlankSearch {
+		sortedOptions := make([]provider.FilterOption, len(providerOptions))
+		copy(sortedOptions, providerOptions)
+		sort.Slice(sortedOptions, func(i, j int) bool {
+			return sortedOptions[i].Label < sortedOptions[j].Label
+		})
+		return sortedOptions
+	}
+
+	// Build a map of result counts by value
+	resultCounts := make(map[string]int)
+	for _, filterDef := range resultFilters.Filters {
+		if filterDef.Name == attrName {
+			for _, opt := range filterDef.Options {
+				resultCounts[opt.Value] = opt.Count
+			}
+			break
+		}
+	}
+
+	// Merge: provider options with entity counts
+	var mergedOptions []provider.FilterOption
+	for _, providerOpt := range providerOptions {
+		resultCount := resultCounts[providerOpt.Value]
+
+		// Skip if count is 0 and ShowZeroCount is false
+		if resultCount == 0 && !showZeroCount {
+			continue
+		}
+
+		mergedOptions = append(mergedOptions, provider.FilterOption{
+			Value:   providerOpt.Value,
+			Label:   providerOpt.Label,
+			Count:   resultCount,
+			HasMore: resultCount > 0 && resultCount < providerOpt.Count,
+		})
+	}
+
+	// Sort merged options alphabetically
+	sort.Slice(mergedOptions, func(i, j int) bool {
+		return mergedOptions[i].Label < mergedOptions[j].Label
+	})
+
+	return mergedOptions
 }
 
 // ListProviders returns all registered providers.
