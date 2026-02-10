@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect } from 'react'
+import { useMemo, useCallback, useEffect, useRef } from 'react'
 import { useSearchStore } from '@/stores/searchStore'
 import { useSearch } from '@/hooks/useSearch'
 import { useSearchSync } from '@/hooks/useSearchSync'
@@ -25,19 +25,23 @@ export function SearchPage() {
   // Sync search state with URL params (enables refresh and sharing)
   useSearchSync()
 
+  // Track if we've ever triggered a search (to keep showing results)
+  const hasEverSearched = useRef(false)
+
   // Reset to page 1 when filters change (but not when just query changes)
   useEffect(() => {
     setCurrentPage(1)
   }, [selectedTypes, filters, setCurrentPage])
 
-  // Build search request from store state (only when search is triggered)
+  // Build search request from store state
   const searchRequest: SearchRequest | null = useMemo(() => {
-    // Only build request when search is explicitly triggered (button click or Enter)
-    // This prevents searches on every keystroke after the initial search
+    // Only build when search is triggered
     if (!searchTriggered) return null
 
+    hasEverSearched.current = true
+
     const request: SearchRequest = {
-      query: query.trim(), // Allow empty queries
+      query: query.trim(),
       page: currentPage,
       perPage: resultsPerPage,
     }
@@ -85,8 +89,8 @@ export function SearchPage() {
 
   const totalPages = data ? Math.ceil(data.total_count / resultsPerPage) : 0
 
-  // Show results only when we have data from a search
-  const hasSearched = !!data
+  // Show results when we have data OR when loading a search
+  const hasSearched = hasEverSearched.current || isLoading
 
   return (
     <div className="flex gap-6">
