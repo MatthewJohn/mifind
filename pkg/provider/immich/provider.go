@@ -435,14 +435,16 @@ func (p *Provider) getLocationFilterOptions(ctx context.Context) ([]provider.Fil
 	countryMap := make(map[string]int)
 
 	for _, asset := range searchResults {
-		if asset.City != "" {
-			cityMap[asset.City]++
-		}
-		if asset.State != "" {
-			stateMap[asset.State]++
-		}
-		if asset.Country != "" {
-			countryMap[asset.Country]++
+		if asset.ExifInfo != nil {
+			if asset.ExifInfo.City != "" {
+				cityMap[asset.ExifInfo.City]++
+			}
+			if asset.ExifInfo.State != "" {
+				stateMap[asset.ExifInfo.State]++
+			}
+			if asset.ExifInfo.Country != "" {
+				countryMap[asset.ExifInfo.Country]++
+			}
 		}
 	}
 
@@ -717,19 +719,23 @@ func (p *Provider) assetToEntity(asset Asset) types.Entity {
 	if asset.Description != "" {
 		entity.AddAttribute(types.AttrDescription, asset.Description)
 	}
-	if asset.Country != "" {
-		entity.AddAttribute(types.AttrLocationCountry, asset.Country)
-	}
-	if asset.State != "" {
-		entity.AddAttribute(types.AttrLocationState, asset.State)
-	}
-	if asset.City != "" {
-		entity.AddAttribute(types.AttrLocationCity, asset.City)
-	}
 
 	// Add EXIF data
 	if asset.ExifInfo != nil {
 		exif := asset.ExifInfo
+
+		// Location attributes from EXIF
+		if exif.City != "" {
+			entity.AddAttribute(types.AttrLocationCity, exif.City)
+		}
+		if exif.State != "" {
+			entity.AddAttribute(types.AttrLocationState, exif.State)
+		}
+		if exif.Country != "" {
+			entity.AddAttribute(types.AttrLocationCountry, exif.Country)
+		}
+
+		// Camera attributes
 		if exif.Make != "" {
 			entity.AddAttribute(types.AttrCamera, exif.Make)
 			if exif.Model != "" {
@@ -748,6 +754,8 @@ func (p *Provider) assetToEntity(asset Asset) types.Entity {
 		if exif.DateTimeOriginal != "" {
 			entity.AddAttribute("date_time_original", exif.DateTimeOriginal)
 		}
+
+		// GPS - check both old GPS field and new Lat/Long fields
 		if exif.GPS != nil {
 			entity.AddAttribute(types.AttrGPS, types.GPS{
 				Latitude:  exif.GPS.Latitude,
@@ -755,6 +763,13 @@ func (p *Provider) assetToEntity(asset Asset) types.Entity {
 			})
 			entity.AddAttribute(types.AttrLatitude, exif.GPS.Latitude)
 			entity.AddAttribute(types.AttrLongitude, exif.GPS.Longitude)
+		} else if exif.Latitude != nil && exif.Longitude != nil {
+			entity.AddAttribute(types.AttrGPS, types.GPS{
+				Latitude:  *exif.Latitude,
+				Longitude: *exif.Longitude,
+			})
+			entity.AddAttribute(types.AttrLatitude, *exif.Latitude)
+			entity.AddAttribute(types.AttrLongitude, *exif.Longitude)
 		}
 	}
 
@@ -763,14 +778,16 @@ func (p *Provider) assetToEntity(asset Asset) types.Entity {
 	if asset.Description != "" {
 		entity.AddSearchToken(asset.Description)
 	}
-	if asset.Country != "" {
-		entity.AddSearchToken(asset.Country)
-	}
-	if asset.State != "" {
-		entity.AddSearchToken(asset.State)
-	}
-	if asset.City != "" {
-		entity.AddSearchToken(asset.City)
+	if asset.ExifInfo != nil {
+		if asset.ExifInfo.Country != "" {
+			entity.AddSearchToken(asset.ExifInfo.Country)
+		}
+		if asset.ExifInfo.State != "" {
+			entity.AddSearchToken(asset.ExifInfo.State)
+		}
+		if asset.ExifInfo.City != "" {
+			entity.AddSearchToken(asset.ExifInfo.City)
+		}
 	}
 
 	// Add album relationship

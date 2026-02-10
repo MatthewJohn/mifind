@@ -692,10 +692,9 @@ func (h *Handlers) getPreObtainedFilterValues(_ context.Context, capabilities ma
 		}
 
 		// Cache the values using attribute's cache TTL (generic, not hardcoded 24h)
-		if len(values) > 0 {
-			h.filterCache.Set(filterName, values)
-			result[filterName] = values
-		}
+		// Always cache even if empty, so frontend gets values field populated
+		h.filterCache.Set(filterName, values)
+		result[filterName] = values
 	}
 
 	return result

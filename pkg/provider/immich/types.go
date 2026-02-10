@@ -131,7 +131,13 @@ type ExifInfo struct {
 	FocalLength      float32  `json:"focalLength,omitempty"`
 	LensModel        string   `json:"lensModel,omitempty"`
 	DateTimeOriginal string   `json:"dateTimeOriginal,omitempty"`
+	ModifyDate       string   `json:"modifyDate,omitempty"`
 	GPS              *GPSInfo `json:"exifGPSLatitude,omitempty"`
+	City             string   `json:"city,omitempty"`
+	State            string   `json:"state,omitempty"`
+	Country          string   `json:"country,omitempty"`
+	Latitude         *float64 `json:"latitude,omitempty"`
+	Longitude        *float64 `json:"longitude,omitempty"`
 }
 
 // GPSInfo contains GPS coordinates.
