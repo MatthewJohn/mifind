@@ -19,12 +19,23 @@ export const searchApi = {
       offset: request.page ? ((request.page - 1) * (request.perPage || 20)) : 0,
     }
 
-    // Transform filters array to map format
+    // Transform filters array to map format: {key: {operator: value}}
+    // Also extract type filter to use the dedicated 'type' field
     if (request.filters && request.filters.length > 0) {
-      goRequest.filters = {}
+      const filtersMap: Record<string, any> = {}
+
       for (const filter of request.filters) {
-        // Use simple key-value format for now
-        goRequest.filters[filter.key] = filter.value
+        // Type filters use the dedicated 'type' field in the Go API
+        if (filter.key === 'type') {
+          goRequest.type = filter.value
+        } else {
+          // Other filters: {key: {operator: value}}
+          filtersMap[filter.key] = { [filter.operator]: filter.value }
+        }
+      }
+
+      if (Object.keys(filtersMap).length > 0) {
+        goRequest.filters = filtersMap
       }
     }
 
