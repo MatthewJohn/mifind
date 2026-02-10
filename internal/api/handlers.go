@@ -562,14 +562,8 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 	// Merge provider values with result counts for provider-based filters
 	mergedValues := h.mergeFilterValues(preObtainedValues, filterResult, isBlankSearch)
 
-	// Get all attribute definitions for generic UI rendering
-	attributes := h.typeRegistry.GetAllAttributes()
-
-	// Merge with provider-specific attribute extensions (provider extensions override core)
-	providerExtensions := h.manager.GetAttributeExtensions(r.Context())
-	for name, attrDef := range providerExtensions {
-		attributes[name] = attrDef
-	}
+	// Get all attribute definitions including provider extensions for generic UI rendering
+	attributes := h.getAllAttributesWithExtensions(r.Context())
 
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"capabilities": capabilities,
@@ -655,19 +649,39 @@ func (h *Handlers) addTypeFilterCapabilities(capabilities map[string]provider.Fi
 	}
 }
 
+// getAllAttributesWithExtensions returns all attribute definitions including:
+// - Core attributes (from type registry)
+// - Type-specific attributes (from type registry)
+// - Provider extensions (from providers' AttributeExtensions())
+//
+// This is the single source of truth for all attributes in the system.
+func (h *Handlers) getAllAttributesWithExtensions(ctx context.Context) map[string]types.AttributeDef {
+	// Start with core and type-specific attributes from the type registry
+	allAttrs := h.typeRegistry.GetAllAttributes()
+
+	// Merge in provider extensions (provider-specific attribute definitions)
+	providerExtensions := h.manager.GetAttributeExtensions(ctx)
+	for name, ext := range providerExtensions {
+		// Provider extensions override core attributes of the same name
+		allAttrs[name] = ext
+	}
+
+	return allAttrs
+}
+
 // addAlwaysVisibleCapabilities ensures always-visible filter capabilities from ALL providers
 // are included, even if the provider returned 0 results for the current search.
 // This is important for filters like "person" which are marked AlwaysVisible: true.
 func (h *Handlers) addAlwaysVisibleCapabilities(ctx context.Context, capabilities map[string]provider.FilterCapability) {
-	// Get all attribute definitions to find always-visible ones
-	allAttrs := h.typeRegistry.GetAllAttributes()
-
 	// Get all providers' capabilities (not just those with results)
 	allProviderCaps, err := h.manager.FilterCapabilities(ctx)
 	if err != nil {
 		h.logger.Warn().Err(err).Msg("Failed to get all provider capabilities for always-visible filters")
 		return
 	}
+
+	// Get all attribute definitions including provider extensions
+	allAttrs := h.getAllAttributesWithExtensions(ctx)
 
 	// Add always-visible attributes from all providers
 	for attrName, attrDef := range allAttrs {
