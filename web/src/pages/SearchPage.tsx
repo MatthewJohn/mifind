@@ -29,9 +29,6 @@ export function SearchPage() {
   // Track if we've ever triggered a search (to know when to show results vs "start searching")
   const hasEverSearchedRef = useRef(false)
 
-  // Track if we should keep the search request active (even after trigger is reset)
-  const keepSearchingRef = useRef(false)
-
   // Auto-trigger search when filters change (after initial search)
   const prevFiltersRef = useRef<typeof filters>([])
   const prevTypesRef = useRef<typeof selectedTypes>([])
@@ -57,10 +54,10 @@ export function SearchPage() {
 
   // Build search request from store state
   const searchRequest: SearchRequest | null = useMemo(() => {
-    // Build request when search is triggered OR when we should keep searching (have data or are loading)
-    // This prevents the query from being disabled while loading or showing results
-    if (!searchTriggered && !keepSearchingRef.current) return null
+    // Only build request when explicitly triggered, OR if we've searched before (keep active)
+    if (!searchTriggered && !hasEverSearchedRef.current) return null
 
+    // Mark that we've searched (persists for the session)
     hasEverSearchedRef.current = true
 
     const request: SearchRequest = {
@@ -89,9 +86,9 @@ export function SearchPage() {
     }
 
     return request
-  }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters, keepSearchingRef])
+  }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters])
 
-  // Reset search trigger after building request
+  // Reset search trigger after building request (it's been captured by keepSearchingRef)
   useEffect(() => {
     if (searchTriggered) {
       resetSearchTrigger()
@@ -100,20 +97,6 @@ export function SearchPage() {
 
   // Run the search query
   const { data, isLoading, error } = useSearch(searchRequest)
-
-  // Keep the search request active once we have results
-  useEffect(() => {
-    if (data && data.entities && data.entities.length > 0) {
-      keepSearchingRef.current = true
-    }
-  }, [data])
-
-  // Reset keepSearching when user triggers a new search (so new query is used)
-  useEffect(() => {
-    if (searchTriggered) {
-      keepSearchingRef.current = false
-    }
-  }, [searchTriggered])
 
   const handleEntityClick = useCallback((entity: any) => {
     setSelectedEntity(entity)
