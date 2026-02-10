@@ -100,6 +100,18 @@ export function SearchPage() {
 
   const { data, isLoading, error } = useSearch(searchRequest)
 
+  // Debug: log data when it changes
+  useEffect(() => {
+    console.log('Search data:', data)
+    console.log('isLoading:', isLoading)
+    console.log('searchRequest:', searchRequest)
+    if (data) {
+      console.log('data.entities:', data.entities)
+      console.log('data.entities length:', data.entities?.length)
+      console.log('data keys:', Object.keys(data))
+    }
+  }, [data, isLoading, searchRequest])
+
   // Update isSearching when loading state changes
   useEffect(() => {
     if (!isLoading && isSearching.current) {
