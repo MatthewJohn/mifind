@@ -64,7 +64,7 @@ func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int,
 		defaultSize = 25 // Text searches are slower
 	}
 
-	return c.doSearchRequest(ctx, query, limit, defaultSize, peopleIDs, country, state, city, albumID, false)
+	return c.doSearchRequest(ctx, query, limit, defaultSize, peopleIDs, country, state, city, albumID, true)
 }
 
 // doSearchRequest is the internal search implementation that all search methods use.
