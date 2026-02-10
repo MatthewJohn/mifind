@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect, useRef, useState } from 'react'
+import { useMemo, useCallback, useEffect, useRef } from 'react'
 import { useSearchStore } from '@/stores/searchStore'
 import { useSearch } from '@/hooks/useSearch'
 import { useSearchSync } from '@/hooks/useSearchSync'
@@ -26,19 +26,19 @@ export function SearchPage() {
   // Sync search state with URL params (enables refresh and sharing)
   useSearchSync()
 
-  // Track if we've ever triggered a search
-  const hasEverSearched = useRef(false)
+  // Track if we've ever triggered a search (to know when to show results vs "start searching")
+  const hasEverSearchedRef = useRef(false)
 
-  // Track if we're actively performing a search (for spinner)
-  const [isSearching, setIsSearching] = useState(false)
+  // Track if we should keep the search request active (even after trigger is reset)
+  const keepSearchingRef = useRef(false)
 
   // Auto-trigger search when filters change (after initial search)
   const prevFiltersRef = useRef<typeof filters>([])
   const prevTypesRef = useRef<typeof selectedTypes>([])
 
   useEffect(() => {
-    // Skip on first render
-    if (!hasEverSearched.current) return
+    // Skip on first render or before first search
+    if (!hasEverSearchedRef.current) return
 
     // Check if filters actually changed
     const filtersChanged = JSON.stringify(prevFiltersRef.current) !== JSON.stringify(filters)
@@ -53,15 +53,15 @@ export function SearchPage() {
     // Update refs
     prevFiltersRef.current = filters
     prevTypesRef.current = selectedTypes
-  }, [filters, selectedTypes, hasEverSearched, setCurrentPage, triggerSearch])
+  }, [filters, selectedTypes, setCurrentPage, triggerSearch])
 
   // Build search request from store state
   const searchRequest: SearchRequest | null = useMemo(() => {
-    // Only build when search is triggered
-    if (!searchTriggered) return null
+    // Build request when search is triggered OR when we should keep searching (have data or are loading)
+    // This prevents the query from being disabled while loading or showing results
+    if (!searchTriggered && !keepSearchingRef.current) return null
 
-    hasEverSearched.current = true
-    setIsSearching(true)
+    hasEverSearchedRef.current = true
 
     const request: SearchRequest = {
       query: query.trim(),
@@ -89,7 +89,7 @@ export function SearchPage() {
     }
 
     return request
-  }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters, triggerSearch])
+  }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters, keepSearchingRef])
 
   // Reset search trigger after building request
   useEffect(() => {
@@ -98,27 +98,22 @@ export function SearchPage() {
     }
   }, [searchTriggered, resetSearchTrigger])
 
+  // Run the search query
   const { data, isLoading, error } = useSearch(searchRequest)
 
-  // Reset isSearching when loading completes
+  // Keep the search request active once we have results
   useEffect(() => {
-    if (!isLoading && isSearching) {
-      setIsSearching(false)
+    if (data && data.entities && data.entities.length > 0) {
+      keepSearchingRef.current = true
     }
-  }, [isLoading, isSearching])
+  }, [data])
 
-  // Debug logging
+  // Reset keepSearching when user triggers a new search (so new query is used)
   useEffect(() => {
-    console.log('Render state:', {
-      hasEverSearched: hasEverSearched.current,
-      isSearching,
-      isLoading,
-      searchRequest: searchRequest ? 'exists' : null,
-      data,
-      dataEntities: data?.entities,
-      dataEntitiesLength: data?.entities?.length,
-    })
-  })
+    if (searchTriggered) {
+      keepSearchingRef.current = false
+    }
+  }, [searchTriggered])
 
   const handleEntityClick = useCallback((entity: any) => {
     setSelectedEntity(entity)
@@ -132,10 +127,9 @@ export function SearchPage() {
 
   const totalPages = data ? Math.ceil(data.total_count / resultsPerPage) : 0
 
-  // Determine what to show
-  const hasSearched = hasEverSearched.current
-  const showLoading = isLoading || isSearching
-  const hasResults = data && data.entities && data.entities.length > 0
+  // Simple state derivation
+  const hasSearched = hasEverSearchedRef.current
+  const hasResults = data?.entities && data.entities.length > 0
 
   return (
     <div className="flex gap-6">
@@ -145,7 +139,7 @@ export function SearchPage() {
         {hasSearched && (
           <div className="mb-4">
             <p className="text-sm text-gray-600">
-              {showLoading ? (
+              {isLoading ? (
                 'Searching...'
               ) : error ? (
                 <span className="text-red-600">Error searching</span>
@@ -175,7 +169,7 @@ export function SearchPage() {
 
         {hasSearched ? (
           <>
-            {showLoading ? (
+            {isLoading ? (
               <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0654ba]"></div>
               </div>
