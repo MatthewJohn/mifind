@@ -289,9 +289,11 @@ var (
 			Priority: 13,
 		},
 		Filter: FilterConfig{
-			SupportsEq:  true,
-			SupportsNeq: true,
-			Cacheable:   false,
+			SupportsEq:    true,
+			SupportsNeq:   true,
+			Cacheable:     false,
+			ValueSource:   FilterValueResultBased,
+			ShowZeroCount: false,
 		},
 	}
 
@@ -378,7 +380,7 @@ var (
 		},
 	}
 
-	// AttrDefLocation is the standard location country attribute definition.
+	// AttrDefLocationCountry is the standard location country attribute definition.
 	AttrDefLocationCountry = AttributeDef{
 		Name:          AttrLocationCountry,
 		Type:          AttributeTypeString,
@@ -387,7 +389,7 @@ var (
 		Description:   "Country name",
 		AlwaysVisible: false,
 		UI: UIConfig{
-			Widget:   "input",
+			Widget:   "multiselect",
 			Icon:     "Map",
 			Group:    "metadata",
 			Label:    "Country",
@@ -395,33 +397,40 @@ var (
 		},
 		Filter: FilterConfig{
 			SupportsEq:       true,
+			SupportsNeq:      true,
 			SupportsContains: true,
 			Cacheable:        true,
 			CacheTTL:         24 * time.Hour,
+			ValueSource:      FilterValueProviderBased,
+			ShowZeroCount:    true,
 		},
 	}
-	// AttrDefLocation is the standard location state attribute definition.
+	// AttrDefLocationState is the standard location state attribute definition.
 	AttrDefLocationState = AttributeDef{
-		Name:          AttrLocationCountry,
+		Name:          AttrLocationState,
 		Type:          AttributeTypeString,
 		Required:      false,
 		Filterable:    true,
 		Description:   "State name",
 		AlwaysVisible: false,
 		UI: UIConfig{
-			Widget:   "input",
+			Widget:   "multiselect",
 			Icon:     "Map",
 			Group:    "metadata",
 			Label:    "State",
-			Priority: 26,
+			Priority: 27,
 		},
 		Filter: FilterConfig{
 			SupportsEq:       true,
+			SupportsNeq:      true,
 			SupportsContains: true,
 			Cacheable:        true,
 			CacheTTL:         24 * time.Hour,
+			ValueSource:      FilterValueProviderBased,
+			ShowZeroCount:    true,
 		},
 	}
+	// AttrDefLocationCity is the standard location city attribute definition.
 	AttrDefLocationCity = AttributeDef{
 		Name:          AttrLocationCity,
 		Type:          AttributeTypeString,
@@ -430,17 +439,20 @@ var (
 		Description:   "City name",
 		AlwaysVisible: false,
 		UI: UIConfig{
-			Widget:   "input",
+			Widget:   "multiselect",
 			Icon:     "Map",
 			Group:    "metadata",
 			Label:    "City",
-			Priority: 26,
+			Priority: 28,
 		},
 		Filter: FilterConfig{
 			SupportsEq:       true,
+			SupportsNeq:      true,
 			SupportsContains: true,
 			Cacheable:        true,
 			CacheTTL:         24 * time.Hour,
+			ValueSource:      FilterValueProviderBased,
+			ShowZeroCount:    true,
 		},
 	}
 

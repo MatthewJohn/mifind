@@ -485,6 +485,9 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("search")
 	typeName := r.URL.Query().Get("type")
 
+	// Determine if this is a blank/no-search request
+	isBlankSearch := query == "" || query == "*"
+
 	// Execute search to get entities (if query is provided)
 	var filterResult search.FilterResult
 	var preObtainedValues map[string][]provider.FilterOption
@@ -541,6 +544,9 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 		preObtainedValues = h.getPreObtainedFilterValues(r.Context(), capabilities)
 	}
 
+	// Merge provider values with result counts for provider-based filters
+	mergedValues := h.mergeFilterValues(preObtainedValues, filterResult, isBlankSearch)
+
 	// Get all attribute definitions for generic UI rendering
 	attributes := h.typeRegistry.GetAllAttributes()
 
@@ -553,7 +559,7 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"capabilities": capabilities,
 		"filters":      filterResult,
-		"values":       preObtainedValues,
+		"values":       mergedValues,
 		"attributes":   attributes,
 	})
 }
@@ -684,6 +690,77 @@ func (h *Handlers) getPreObtainedFilterValues(_ context.Context, capabilities ma
 	}
 
 	return result
+}
+
+// mergeFilterValues merges pre-obtained provider values with result-based counts.
+// For provider-based filters, shows all pre-obtained values with result counts.
+// Sets HasMore=true when provider count > result count.
+// isBlankSearch indicates if query was empty or no search performed.
+func (h *Handlers) mergeFilterValues(
+	preObtained map[string][]provider.FilterOption,
+	resultFilters search.FilterResult,
+	isBlankSearch bool,
+) map[string][]provider.FilterOption {
+	merged := make(map[string][]provider.FilterOption)
+
+	// Get all attribute definitions to check ValueSource
+	allAttrs := h.typeRegistry.GetAllAttributes()
+
+	for attrName, providerOptions := range preObtained {
+		attrDef, exists := allAttrs[attrName]
+		if !exists || attrDef.Filter.ValueSource != types.FilterValueProviderBased {
+			// Not provider-based, use as-is
+			merged[attrName] = providerOptions
+			continue
+		}
+
+		// For blank search, show all options with empty counts
+		if isBlankSearch {
+			blankOptions := make([]provider.FilterOption, len(providerOptions))
+			for i, opt := range providerOptions {
+				blankOptions[i] = provider.FilterOption{
+					Value:   opt.Value,
+					Label:   opt.Label,
+					Count:   0,
+					HasMore: false,
+				}
+			}
+			merged[attrName] = blankOptions
+			continue
+		}
+
+		// Build a map of result counts by value
+		resultCounts := make(map[string]int)
+		for _, filterDef := range resultFilters.Filters {
+			if filterDef.Name == attrName {
+				for _, opt := range filterDef.Options {
+					resultCounts[opt.Value] = opt.Count
+				}
+				break
+			}
+		}
+
+		// Merge: keep provider options based on ShowZeroCount, update counts from results
+		var mergedOptions []provider.FilterOption
+		for _, providerOpt := range providerOptions {
+			resultCount := resultCounts[providerOpt.Value]
+
+			// Skip if count is 0 and ShowZeroCount is false
+			if resultCount == 0 && !attrDef.Filter.ShowZeroCount {
+				continue
+			}
+
+			mergedOptions = append(mergedOptions, provider.FilterOption{
+				Value:   providerOpt.Value,
+				Label:   providerOpt.Label,
+				Count:   resultCount, // Use result count (0 if not in results)
+				HasMore: resultCount > 0 && resultCount < providerOpt.Count,
+			})
+		}
+		merged[attrName] = mergedOptions
+	}
+
+	return merged
 }
 
 // ListProviders returns all registered providers.

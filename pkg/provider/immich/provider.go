@@ -455,7 +455,7 @@ func (p *Provider) getLocationFilterOptions(ctx context.Context) ([]provider.Fil
 		})
 	}
 	stateOptions := make([]provider.FilterOption, 0, len(stateMap))
-	for state, count := range cityMap {
+	for state, count := range stateMap {
 		stateOptions = append(stateOptions, provider.FilterOption{
 			Value: state,
 			Label: state,

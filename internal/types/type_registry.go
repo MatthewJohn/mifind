@@ -51,6 +51,18 @@ type UIConfig struct {
 	Priority int
 }
 
+// FilterValueSource defines how filter values are populated.
+type FilterValueSource string
+
+const (
+	// FilterValueResultBased: Extract values from current search results.
+	FilterValueResultBased FilterValueSource = "result"
+
+	// FilterValueProviderBased: Use pre-obtained list from provider.
+	// Merges provider values with result counts for display.
+	FilterValueProviderBased FilterValueSource = "provider"
+)
+
 // FilterConfig describes how filtering works for an attribute.
 // This enables generic filter handling without hardcoded attribute knowledge.
 type FilterConfig struct {
@@ -77,6 +89,14 @@ type FilterConfig struct {
 	// Provider-level filters (e.g., Immich person/album) are passed to the provider
 	// during search and don't exist as entity.Attributes keys.
 	ProviderLevel bool
+
+	// ValueSource specifies where filter values come from.
+	// Defaults to FilterValueResultBased if not set.
+	ValueSource FilterValueSource
+
+	// ShowZeroCount indicates whether to show filter options with zero count.
+	// Only meaningful when ValueSource is FilterValueProviderBased.
+	ShowZeroCount bool
 }
 
 // AttributeDef defines an attribute's type and constraints.

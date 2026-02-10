@@ -86,6 +86,7 @@ func (r *MeilisearchRanker) Rank(ctx context.Context, entities []EntityWithProvi
 	// Step 4: Execute search
 	// When provider-level filters are active (person, album, location), use wildcard search
 	// to match all entities since providers have already done the filtering
+	// @TODO Remove this as we should NOT filter out those that don't match - is this really useful?
 	searchQuery := query.Query
 	if r.hasProviderLevelFilters(query.Filters) {
 		// Use wildcard to match all when provider filters are active

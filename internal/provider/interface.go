@@ -169,6 +169,10 @@ type FilterOption struct {
 
 	// Count is the number of entities with this value (optional, for faceted search)
 	Count int
+
+	// HasMore indicates if more entities exist with this value than shown in Count.
+	// Used for provider-based filters to indicate partial results (e.g., "23+").
+	HasMore bool
 }
 
 // Provider defines the interface that all data source providers must implement.

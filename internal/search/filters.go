@@ -53,6 +53,10 @@ type FilterOption struct {
 
 	// Selected indicates if this option is currently selected
 	Selected bool
+
+	// HasMore indicates if more entities exist with this value than shown in Count.
+	// Used for provider-based filters to indicate partial results (e.g., "23+").
+	HasMore bool
 }
 
 // FilterResult contains available filters for a result set.
