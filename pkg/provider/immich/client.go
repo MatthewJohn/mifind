@@ -80,9 +80,14 @@ func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int,
 	}
 
 	// Build search request body
+	// Ensure size is at least 1 (Immich API requires size >= 1)
+	searchSize := limit
+	if searchSize < 1 {
+		searchSize = 100 // Default size if limit is 0 or negative
+	}
 	reqBody := map[string]any{
 		"page":      1,
-		"size":      limit,
+		"size":      searchSize,
 		"isVisible": true, // Only search visible assets
 	}
 
