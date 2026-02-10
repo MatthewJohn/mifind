@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect, useRef } from 'react'
+import { useMemo, useCallback, useEffect } from 'react'
 import { useSearchStore } from '@/stores/searchStore'
 import { useSearch } from '@/hooks/useSearch'
 import { useSearchSync } from '@/hooks/useSearchSync'
@@ -25,9 +25,6 @@ export function SearchPage() {
   // Sync search state with URL params (enables refresh and sharing)
   useSearchSync()
 
-  // Track if we've ever performed a search (to show results persistently)
-  const hasEverSearched = useRef(false)
-
   // Reset to page 1 when filters change (but not when just query changes)
   useEffect(() => {
     setCurrentPage(1)
@@ -35,8 +32,9 @@ export function SearchPage() {
 
   // Build search request from store state (only when search is triggered)
   const searchRequest: SearchRequest | null = useMemo(() => {
-    // Only build request after user has triggered search at least once
-    if (!hasEverSearched.current && !searchTriggered) return null
+    // Only build request when search is explicitly triggered (button click or Enter)
+    // This prevents searches on every keystroke after the initial search
+    if (!searchTriggered) return null
 
     const request: SearchRequest = {
       query: query.trim(), // Allow empty queries
@@ -66,10 +64,9 @@ export function SearchPage() {
     return request
   }, [searchTriggered, query, currentPage, resultsPerPage, selectedTypes, filters])
 
-  // Handle search trigger - mark that we've searched and reset trigger
+  // Reset search trigger after building request
   useEffect(() => {
     if (searchTriggered) {
-      hasEverSearched.current = true
       resetSearchTrigger()
     }
   }, [searchTriggered, resetSearchTrigger])
@@ -88,8 +85,8 @@ export function SearchPage() {
 
   const totalPages = data ? Math.ceil(data.total_count / resultsPerPage) : 0
 
-  // Show "no search" state when search hasn't been triggered yet
-  const hasSearched = hasEverSearched.current || data
+  // Show results only when we have data from a search
+  const hasSearched = !!data
 
   return (
     <div className="flex gap-6">
