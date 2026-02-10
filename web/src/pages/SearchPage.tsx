@@ -19,19 +19,38 @@ export function SearchPage() {
     selectedEntity,
     setSelectedEntity,
     selectedTypes,
-    filters
+    filters,
+    triggerSearch,
   } = useSearchStore()
 
   // Sync search state with URL params (enables refresh and sharing)
   useSearchSync()
 
-  // Track if we've ever triggered a search (to keep showing results)
+  // Track if we've ever triggered a search
   const hasEverSearched = useRef(false)
 
-  // Reset to page 1 when filters change (but not when just query changes)
+  // Auto-trigger search when filters change (after initial search)
+  const prevFiltersRef = useRef<typeof filters>([])
+  const prevTypesRef = useRef<typeof selectedTypes>([])
+
   useEffect(() => {
-    setCurrentPage(1)
-  }, [selectedTypes, filters, setCurrentPage])
+    // Skip on first render
+    if (!hasEverSearched.current) return
+
+    // Check if filters actually changed
+    const filtersChanged = JSON.stringify(prevFiltersRef.current) !== JSON.stringify(filters)
+    const typesChanged = JSON.stringify(prevTypesRef.current) !== JSON.stringify(selectedTypes)
+
+    if (filtersChanged || typesChanged) {
+      // Reset to page 1 and trigger search
+      setCurrentPage(1)
+      triggerSearch()
+    }
+
+    // Update refs
+    prevFiltersRef.current = filters
+    prevTypesRef.current = selectedTypes
+  }, [filters, selectedTypes, hasEverSearched, setCurrentPage, triggerSearch])
 
   // Build search request from store state
   const searchRequest: SearchRequest | null = useMemo(() => {
@@ -90,7 +109,7 @@ export function SearchPage() {
   const totalPages = data ? Math.ceil(data.total_count / resultsPerPage) : 0
 
   // Show results when we have data OR when loading a search
-  const hasSearched = hasEverSearched.current || isLoading
+  const hasSearched = hasEverSearched.current
 
   return (
     <div className="flex gap-6">
@@ -128,11 +147,23 @@ export function SearchPage() {
           </div>
         )}
 
-        <SearchResults
-          entities={data?.entities || []}
-          loading={isLoading}
-          onEntityClick={handleEntityClick}
-        />
+        {hasSearched ? (
+          <SearchResults
+            entities={data?.entities || []}
+            loading={isLoading}
+            onEntityClick={handleEntityClick}
+          />
+        ) : (
+          <div className="text-center py-16">
+            <div className="text-gray-400 mb-4">
+              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-700 mb-2">Start searching</h2>
+            <p className="text-gray-500">Enter a query or set filters, then click Search</p>
+          </div>
+        )}
 
         {/* Pagination */}
         {data && data.total_count > 0 && (
@@ -145,18 +176,6 @@ export function SearchPage() {
               onPageChange={handlePageChange}
               isLoading={isLoading}
             />
-          </div>
-        )}
-
-        {!hasSearched && (
-          <div className="text-center py-16">
-            <div className="text-gray-400 mb-4">
-              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-semibold text-gray-700 mb-2">Start searching</h2>
-            <p className="text-gray-500">Enter a query or set filters, then click Search</p>
           </div>
         )}
       </div>
