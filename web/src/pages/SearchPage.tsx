@@ -1,6 +1,7 @@
 import { useMemo, useCallback, useEffect, useRef } from 'react'
 import { useSearchStore } from '@/stores/searchStore'
 import { useSearch } from '@/hooks/useSearch'
+import { useSearchSync } from '@/hooks/useSearchSync'
 import { SearchResults } from '@/components/search/SearchResults'
 import { FilterSidebar } from '@/components/search/FilterSidebar'
 import { EntityModal } from '@/components/entity/EntityModal'
@@ -20,6 +21,9 @@ export function SearchPage() {
     selectedTypes,
     filters
   } = useSearchStore()
+
+  // Sync search state with URL params (enables refresh and sharing)
+  useSearchSync()
 
   // Track if we've ever performed a search (to show results persistently)
   const hasEverSearched = useRef(false)

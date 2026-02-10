@@ -523,6 +523,11 @@ func (h *Handlers) GetFilters(w http.ResponseWriter, r *http.Request) {
 		// Get capabilities only from providers that returned results
 		capabilities = h.getProviderCapabilitiesForResults(r.Context(), response.Results)
 
+		// IMPORTANT: Also include always-visible capabilities from ALL providers
+		// This ensures filters like "person" (AlwaysVisible: true) are available
+		// even when their provider returns 0 results for the current search
+		h.addAlwaysVisibleCapabilities(r.Context(), capabilities)
+
 		// IMPORTANT: Always include type filter capabilities from type registry
 		// This ensures entity type filters (file, photo, video, etc.) are always available
 		// even when providers that expose them are skipped due to unsupported filters
@@ -650,6 +655,39 @@ func (h *Handlers) addTypeFilterCapabilities(capabilities map[string]provider.Fi
 	}
 }
 
+// addAlwaysVisibleCapabilities ensures always-visible filter capabilities from ALL providers
+// are included, even if the provider returned 0 results for the current search.
+// This is important for filters like "person" which are marked AlwaysVisible: true.
+func (h *Handlers) addAlwaysVisibleCapabilities(ctx context.Context, capabilities map[string]provider.FilterCapability) {
+	// Get all attribute definitions to find always-visible ones
+	allAttrs := h.typeRegistry.GetAllAttributes()
+
+	// Get all providers' capabilities (not just those with results)
+	allProviderCaps, err := h.manager.FilterCapabilities(ctx)
+	if err != nil {
+		h.logger.Warn().Err(err).Msg("Failed to get all provider capabilities for always-visible filters")
+		return
+	}
+
+	// Add always-visible attributes from all providers
+	for attrName, attrDef := range allAttrs {
+		if !attrDef.AlwaysVisible || attrName == types.AttrType {
+			// Skip type (handled separately) and non-always-visible
+			continue
+		}
+
+		// If this attribute is already in capabilities, skip it
+		if _, exists := capabilities[attrName]; exists {
+			continue
+		}
+
+		// Check if any provider provides this capability
+		if providerCap, exists := allProviderCaps[attrName]; exists {
+			capabilities[attrName] = providerCap
+		}
+	}
+}
+
 // getPreObtainedFilterValues fetches pre-obtained filter values from providers.
 // Uses generic attribute metadata to determine which attributes are cacheable.
 // Cache misses are fetched asynchronously with a timeout to avoid blocking.
@@ -676,7 +714,8 @@ func (h *Handlers) getPreObtainedFilterValues(_ context.Context, capabilities ma
 
 		// Cache miss - fetch in background with timeout
 		// Use a separate context to avoid blocking the HTTP response
-		fetchCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		// Increased timeout for slow providers like Immich with many people
+		fetchCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
 		values, err := h.manager.GetFilterValues(fetchCtx, filterName)
 		cancel() // Always cancel the context
