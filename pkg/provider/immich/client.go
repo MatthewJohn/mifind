@@ -83,7 +83,12 @@ func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int,
 	// Ensure size is at least 1 (Immich API requires size >= 1)
 	searchSize := limit
 	if searchSize < 1 {
-		searchSize = 100 // Default size if limit is 0 or negative
+		// Use smaller default for text searches (faster), larger for filter-only
+		if query != "" {
+			searchSize = 25 // Text searches can be slow
+		} else {
+			searchSize = 100 // Filter-only searches can use larger page size
+		}
 	}
 	reqBody := map[string]any{
 		"page":      1,
