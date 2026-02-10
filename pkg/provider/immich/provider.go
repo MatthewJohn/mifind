@@ -599,7 +599,7 @@ func (p *Provider) AttributeExtensions(ctx context.Context) map[string]types.Att
 			Filterable: true,
 			Description: "City name - filter handled by Immich API",
 			UI: types.UIConfig{
-				Widget:   "input",
+				Widget:   "select",
 				Icon:     "MapPin",
 				Group:    "provider-immich",
 				Label:    "City",
@@ -607,10 +607,13 @@ func (p *Provider) AttributeExtensions(ctx context.Context) map[string]types.Att
 			},
 			Filter: types.FilterConfig{
 				SupportsEq:       true,
+				SupportsNeq:      true,
 				SupportsContains: true,
 				Cacheable:        true,
 				CacheTTL:         24 * time.Hour,
 				ProviderLevel:    true, // Filtered by Immich API, not entity attributes
+				ValueSource:      types.FilterValueProviderBased,
+				ShowZeroCount:    true,
 			},
 		},
 		types.AttrLocationState: {
@@ -619,7 +622,7 @@ func (p *Provider) AttributeExtensions(ctx context.Context) map[string]types.Att
 			Filterable: true,
 			Description: "State/Province name - filter handled by Immich API",
 			UI: types.UIConfig{
-				Widget:   "input",
+				Widget:   "select",
 				Icon:     "MapPin",
 				Group:    "provider-immich",
 				Label:    "State",
@@ -627,10 +630,13 @@ func (p *Provider) AttributeExtensions(ctx context.Context) map[string]types.Att
 			},
 			Filter: types.FilterConfig{
 				SupportsEq:       true,
+				SupportsNeq:      true,
 				SupportsContains: true,
 				Cacheable:        true,
 				CacheTTL:         24 * time.Hour,
 				ProviderLevel:    true, // Filtered by Immich API, not entity attributes
+				ValueSource:      types.FilterValueProviderBased,
+				ShowZeroCount:    true,
 			},
 		},
 		types.AttrLocationCountry: {
@@ -639,7 +645,7 @@ func (p *Provider) AttributeExtensions(ctx context.Context) map[string]types.Att
 			Filterable: true,
 			Description: "Country name - filter handled by Immich API",
 			UI: types.UIConfig{
-				Widget:   "input",
+				Widget:   "select",
 				Icon:     "Map",
 				Group:    "provider-immich",
 				Label:    "Country",
@@ -647,10 +653,13 @@ func (p *Provider) AttributeExtensions(ctx context.Context) map[string]types.Att
 			},
 			Filter: types.FilterConfig{
 				SupportsEq:       true,
+				SupportsNeq:      true,
 				SupportsContains: true,
 				Cacheable:        true,
 				CacheTTL:         24 * time.Hour,
 				ProviderLevel:    true, // Filtered by Immich API, not entity attributes
+				ValueSource:      types.FilterValueProviderBased,
+				ShowZeroCount:    true,
 			},
 		},
 	}
