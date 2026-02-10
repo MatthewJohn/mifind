@@ -20,7 +20,9 @@ import (
 	"github.com/yourname/mifind/internal/search"
 	"github.com/yourname/mifind/internal/types"
 	"github.com/yourname/mifind/pkg/provider/filesystem"
+	"github.com/yourname/mifind/pkg/provider/gitlab"
 	"github.com/yourname/mifind/pkg/provider/immich"
+	"github.com/yourname/mifind/pkg/provider/jellyfin"
 )
 
 func main() {
@@ -75,6 +77,24 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to register Immich provider")
 	}
 
+	// Register Jellyfin provider
+	if err := providerRegistry.Register(provider.ProviderMetadata{
+		Name:        "jellyfin",
+		Description: "Jellyfin media server",
+		Factory:     func() provider.Provider { return jellyfin.NewProvider() },
+	}); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to register Jellyfin provider")
+	}
+
+	// Register GitLab provider
+	if err := providerRegistry.Register(provider.ProviderMetadata{
+		Name:        "gitlab",
+		Description: "GitLab code repository",
+		Factory:     func() provider.Provider { return gitlab.NewProvider() },
+	}); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to register GitLab provider")
+	}
+
 	// Initialize provider manager
 	providerManager := provider.NewManager(providerRegistry, &logger)
 
@@ -119,6 +139,37 @@ func main() {
 			logger.Warn().Err(err).Str("instance", immichConfig.InstanceID).Msg("Failed to initialize Immich provider")
 		} else {
 			logger.Info().Str("instance", immichConfig.InstanceID).Str("url", immichConfig.URL).Msg("Immich provider initialized")
+		}
+	}
+
+	// Initialize Jellyfin providers
+	for _, jellyfinConfig := range config.JellyfinProviders {
+		providerConfig := map[string]any{
+			"instance_id": jellyfinConfig.InstanceID,
+			"url":         jellyfinConfig.URL,
+			"api_key":     jellyfinConfig.APIKey,
+			"user_id":     jellyfinConfig.UserID,
+		}
+		if err := providerManager.Initialize(context.Background(), "jellyfin", providerConfig); err != nil {
+			logger.Warn().Err(err).Str("instance", jellyfinConfig.InstanceID).Msg("Failed to initialize Jellyfin provider")
+		} else {
+			logger.Info().Str("instance", jellyfinConfig.InstanceID).Str("url", jellyfinConfig.URL).Msg("Jellyfin provider initialized")
+		}
+	}
+
+	// Initialize GitLab providers
+	for _, gitlabConfig := range config.GitLabProviders {
+		providerConfig := map[string]any{
+			"instance_id":   gitlabConfig.InstanceID,
+			"url":          gitlabConfig.URL,
+			"access_token": gitlabConfig.AccessToken,
+			"search_issues": gitlabConfig.SearchIssues,
+			"projects":     gitlabConfig.Projects,
+		}
+		if err := providerManager.Initialize(context.Background(), "gitlab", providerConfig); err != nil {
+			logger.Warn().Err(err).Str("instance", gitlabConfig.InstanceID).Msg("Failed to initialize GitLab provider")
+		} else {
+			logger.Info().Str("instance", gitlabConfig.InstanceID).Str("url", gitlabConfig.URL).Msg("GitLab provider initialized")
 		}
 	}
 
@@ -193,6 +244,8 @@ type Config struct {
 	MockEntityCount     int                        `mapstructure:"mock_entity_count"`
 	FilesystemProviders []FilesystemProviderConfig `mapstructure:"filesystem_providers"`
 	ImmichProviders     []ImmichProviderConfig     `mapstructure:"immich_providers"`
+	JellyfinProviders   []JellyfinProviderConfig   `mapstructure:"jellyfin_providers"`
+	GitLabProviders     []GitLabProviderConfig     `mapstructure:"gitlab_providers"`
 }
 
 // UIConfig holds configuration for the web UI.
@@ -216,6 +269,23 @@ type ImmichProviderConfig struct {
 	URL                string `mapstructure:"url"`
 	APIKey             string `mapstructure:"api_key"`
 	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"`
+}
+
+// JellyfinProviderConfig holds configuration for a Jellyfin provider instance.
+type JellyfinProviderConfig struct {
+	InstanceID string `mapstructure:"instance_id"`
+	URL        string `mapstructure:"url"`
+	APIKey     string `mapstructure:"api_key"`
+	UserID     string `mapstructure:"user_id"`
+}
+
+// GitLabProviderConfig holds configuration for a GitLab provider instance.
+type GitLabProviderConfig struct {
+	InstanceID   string   `mapstructure:"instance_id"`
+	URL          string   `mapstructure:"url"`
+	AccessToken  string   `mapstructure:"access_token"`
+	SearchIssues bool     `mapstructure:"search_issues"`
+	Projects     []string `mapstructure:"projects"`
 }
 
 // loadConfig loads configuration from file and environment.
