@@ -177,9 +177,19 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Debug log the incoming request
+	h.logger.Debug().
+		Str("query", req.Query).
+		Str("type", req.Type).
+		Interface("filters", req.Filters).
+		Msg("Search request received")
+
 	// Parse and validate filters using the new typed system
 	typedQuery, err := search.ParseAndValidate(req.Query, req.Filters, h.typeRegistry)
 	if err != nil {
+		// Log the validation error for debugging
+		h.logger.Debug().Err(err).Interface("filters", req.Filters).Msg("Filter validation failed")
+
 		// Handle validation errors with clear messages
 		if multiErr, ok := err.(*filters.MultiValidationError); ok {
 			// Return all validation errors
