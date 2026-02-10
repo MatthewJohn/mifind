@@ -19,9 +19,10 @@ type Config struct {
 
 // ServerConfig holds HTTP server configuration.
 type ServerConfig struct {
-	Port         int `mapstructure:"port"`
-	ReadTimeout  int `mapstructure:"read_timeout"`
-	WriteTimeout int `mapstructure:"write_timeout"`
+	Host         string `mapstructure:"host"`
+	Port         int    `mapstructure:"port"`
+	ReadTimeout  int    `mapstructure:"read_timeout"`
+	WriteTimeout int    `mapstructure:"write_timeout"`
 }
 
 // MeilisearchConfig holds Meilisearch configuration.
@@ -90,6 +91,7 @@ func LoadConfig() (*Config, error) {
 // setDefaults sets default configuration values.
 func setDefaults() {
 	// Server defaults
+	viper.SetDefault("server.host", "127.0.0.1")
 	viper.SetDefault("server.port", 8082)
 	viper.SetDefault("server.read_timeout", 30)
 	viper.SetDefault("server.write_timeout", 30)

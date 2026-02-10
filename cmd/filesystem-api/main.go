@@ -62,7 +62,7 @@ func main() {
 	}
 
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", config.Server.Port),
+		Addr:         fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port),
 		Handler:      router,
 		ReadTimeout:  config.GetReadTimeout(),
 		WriteTimeout: config.GetWriteTimeout(),
