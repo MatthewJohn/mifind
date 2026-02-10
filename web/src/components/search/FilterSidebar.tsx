@@ -5,6 +5,20 @@ import { Badge } from '@/components/ui/badge'
 import { useState } from 'react'
 import type { SearchFilter, SearchResult } from '@/types/api'
 
+// Helper function to sort filter options by count (descending), then by label (alphabetically)
+const sortFilterOptions = (options: any[]) => {
+  return [...options].sort((a, b) => {
+    // First sort by count (descending - higher counts first)
+    if (b.count !== a.count) {
+      return (b.count || 0) - (a.count || 0)
+    }
+    // Then sort by label alphabetically
+    const labelA = (a.label || a.value || '').toLowerCase()
+    const labelB = (b.label || b.value || '').toLowerCase()
+    return labelA.localeCompare(labelB)
+  })
+}
+
 interface FilterSidebarProps {
   searchResult?: SearchResult
 }
@@ -315,7 +329,7 @@ export function FilterSidebar({ searchResult }: FilterSidebarProps) {
                             isPersonFilter ? (
                               // Multi-select for people using checkboxes
                               <div className="max-h-40 overflow-y-auto border border-gray-200 rounded p-2 space-y-1">
-                                {options.map((opt: any) => (
+                                {sortFilterOptions(options).map((opt: any) => (
                                   <label key={opt.value} className="flex items-center gap-2 cursor-pointer group text-xs">
                                     <input
                                       type="checkbox"
@@ -365,7 +379,7 @@ export function FilterSidebar({ searchResult }: FilterSidebarProps) {
                                 value={currentFilterValues[0] ?? ''}
                               >
                                 <option value="">All</option>
-                                {options.map((opt: any) => (
+                                {sortFilterOptions(options).map((opt: any) => (
                                   <option key={opt.value} value={opt.value}>
                                     {opt.label || opt.value}
                                     {opt.count > 0 ? ` (${opt.count}${opt.has_more ? '+' : ''})` : ''}
