@@ -155,6 +155,7 @@ type SearchResponse struct {
 	Duration     float64                             `json:"duration_ms"`
 	Filters      search.FilterResult                 `json:"filters,omitempty"`
 	Capabilities map[string]provider.FilterCapability `json:"capabilities,omitempty"`
+	Values       map[string][]provider.FilterOption  `json:"values,omitempty"` // Pre-obtained filter values for provider-based filters
 	Attributes   map[string]types.AttributeDef       `json:"attributes,omitempty"` // Full attribute definitions for generic UI rendering
 }
 
@@ -269,6 +270,13 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 	// Include actual counts from search results
 	h.addTypeFilterCapabilities(capabilities, result.TypeCounts)
 
+	// Fetch pre-obtained filter values for provider-based filters
+	preObtainedValues := h.getPreObtainedFilterValues(r.Context(), capabilities)
+
+	// Merge provider values with result counts for provider-based filters
+	// isBlankSearch is false since we're in a search request with results
+	mergedValues := h.mergeFilterValues(preObtainedValues, filterResult, false)
+
 	// Get all attribute definitions for generic UI rendering
 	attributes := h.typeRegistry.GetAllAttributes()
 
@@ -285,6 +293,7 @@ func (h *Handlers) Search(w http.ResponseWriter, r *http.Request) {
 		Duration:     float64(time.Since(start).Microseconds()) / 1000,
 		Filters:      filterResult,
 		Capabilities: capabilities,
+		Values:       mergedValues,
 		Attributes:   attributes,
 	}
 

@@ -34,6 +34,7 @@ export interface SearchResult {
   query?: string
   filters?: FilterResult
   capabilities?: Record<string, FilterCapability>
+  values?: Record<string, FilterOptionValue[]>
 }
 
 export interface FilterCapability {

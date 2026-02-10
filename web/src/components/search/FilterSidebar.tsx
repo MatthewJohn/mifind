@@ -30,7 +30,7 @@ export function FilterSidebar({ searchResult }: FilterSidebarProps) {
 
   // Use searchResult filters if available, otherwise fall back to API call
   const filterData = searchResult
-    ? { filters: searchResult.filters, capabilities: searchResult.capabilities, values: undefined }
+    ? { filters: searchResult.filters, capabilities: searchResult.capabilities, values: searchResult.values }
     : filterDataFallback
 
   // Local state for filter inputs
