@@ -66,21 +66,23 @@ export function SearchPage() {
       perPage: resultsPerPage,
     }
 
-    // Combine type filters and attribute filters into a single array
-    // The API client will transform this to the backend format
-    const allFilters = [
-      // Type filters (use first selected type - backend only supports single type)
-      ...selectedTypes.slice(0, 1).map(type => ({
-        key: 'type' as const,
-        operator: 'eq' as const,
-        value: type,
-      })),
-      // Attribute filters
-      ...filters,
-    ]
+    // Add type filters
+    if (selectedTypes.length > 0) {
+      request.filters = [
+        ...selectedTypes.map(type => ({
+          key: 'type',
+          operator: 'eq' as const,
+          value: type,
+        })),
+      ]
+    }
 
-    if (allFilters.length > 0) {
-      request.filters = allFilters
+    // Add attribute filters
+    if (filters.length > 0) {
+      request.filters = [
+        ...(request.filters || []),
+        ...filters
+      ]
     }
 
     return request
