@@ -166,30 +166,17 @@ func (c *Client) doSearchRequest(ctx context.Context, query string, limit, defau
 }
 
 // GetCitySearch performs a search to get assets with location data for filter values.
-// Uses /api/search/metadata with withExif=true to get location information.
-// Uses a large page size (1000) to get accurate counts for location filters.
+// Uses /api/search/cities endpoint which returns representative assets for each unique city.
+// The response format is a simple array of assets, not a SearchResponse.
 func (c *Client) GetCitySearch(ctx context.Context) ([]Asset, error) {
-	result, err := c.doSearchRequest(
-		ctx,
-		"",    // No query
-		1000,  // Large size for accurate filter counts
-		1000,  // Use exact size (no default)
-		nil,   // No people filter
-		"",    // No country filter
-		"",    // No state filter
-		"",    // No city filter
-		"",    // No album filter
-		true,  // withExif=true to only get assets with location data
-	)
-	if err != nil {
+	url := fmt.Sprintf("%s/api/search/cities", c.baseURL)
+
+	var result []Asset
+	if err := c.doGet(ctx, url, &result); err != nil {
 		return nil, fmt.Errorf("get city search failed: %w", err)
 	}
 
-	if result.Assets == nil {
-		return []Asset{}, nil
-	}
-
-	return result.Assets.Items, nil
+	return result, nil
 }
 
 // mustMarshalJSON marshals to JSON or panics.
