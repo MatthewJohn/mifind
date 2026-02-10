@@ -58,3 +58,30 @@ mock_entity_count: 100
 #     url: "https://photos.family.com"
 #     api_key: "another-api-key"
 #     insecure_skip_verify: true
+
+# Jellyfin providers (commented out - enable as needed)
+# Each instance connects to a Jellyfin media server
+# jellyfin_providers:
+#   - instance_id: "movies"
+#     url: "https://jellyfin.example.com"
+#     api_key: "your-api-key-here"
+#     user_id: "your-user-id-here"
+#   - instance_id: "tv"
+#     url: "https://media.example.com"
+#     api_key: "another-api-key"
+#     user_id: "another-user-id"
+
+# GitLab providers (commented out - enable as needed)
+# Each instance connects to a GitLab server
+# gitlab_providers:
+#   - instance_id: "gitlab"
+#     url: "https://gitlab.com"
+#     access_token: "your-pat-here"
+#     search_issues: true
+#     projects:
+#       - "mygroup/myproject"
+#       - "mygroup/another-project"
+#   - instance_id: "gitlab-self-hosted"
+#     url: "https://gitlab.company.com"
+#     access_token: "company-pat"
+#     search_issues: false
