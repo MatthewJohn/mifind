@@ -56,11 +56,28 @@ func (c *Client) Search(ctx context.Context, query string, limit int) (*SearchRe
 }
 
 // SearchWithFilters performs a search query with filters for people, locations, etc.
+// Uses smaller default limits (25 for text, 100 for filter-only) to avoid timeouts.
 func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int, peopleIDs []string, country, state, city, albumID string) (*SearchResponse, error) {
+	// Determine default size based on search type
+	defaultSize := 100
+	if query != "" {
+		defaultSize = 25 // Text searches are slower
+	}
+
+	return c.doSearchRequest(ctx, query, limit, defaultSize, peopleIDs, country, state, city, albumID, false)
+}
+
+// doSearchRequest is the internal search implementation that all search methods use.
+// endpoint: "smart" for text search, "metadata" for filter-only
+// defaultSize: used when limit < 1
+// withExif: if true, only returns assets with EXIF data (used for filter values)
+func (c *Client) doSearchRequest(ctx context.Context, query string, limit, defaultSize int, peopleIDs []string, country, state, city, albumID string, withExif bool) (*SearchResponse, error) {
 	if c.logger != nil {
 		c.logger.Debug().
 			Str("query", query).
 			Int("limit", limit).
+			Int("defaultSize", defaultSize).
+			Bool("withExif", withExif).
 			Strs("people", peopleIDs).
 			Str("country", country).
 			Str("state", state).
@@ -72,24 +89,21 @@ func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int,
 	// Use /api/search/smart for text queries, /api/search/metadata for filter-only searches
 	// /api/search/smart includes exifInfo and supports text search
 	// /api/search/metadata includes exifInfo but does NOT support text query
-	var url string
+	var endpoint string
 	if query != "" {
-		url = fmt.Sprintf("%s/api/search/smart", c.baseURL)
+		endpoint = "smart"
 	} else {
-		url = fmt.Sprintf("%s/api/search/metadata", c.baseURL)
+		endpoint = "metadata"
 	}
+	url := fmt.Sprintf("%s/api/search/%s", c.baseURL, endpoint)
 
-	// Build search request body
 	// Ensure size is at least 1 (Immich API requires size >= 1)
 	searchSize := limit
 	if searchSize < 1 {
-		// Use smaller default for text searches (faster), larger for filter-only
-		if query != "" {
-			searchSize = 25 // Text searches can be slow
-		} else {
-			searchSize = 100 // Filter-only searches can use larger page size
-		}
+		searchSize = defaultSize
 	}
+
+	// Build search request body
 	reqBody := map[string]any{
 		"page":      1,
 		"size":      searchSize,
@@ -99,6 +113,11 @@ func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int,
 	// Add query (only for /api/search/smart)
 	if query != "" {
 		reqBody["query"] = query
+	}
+
+	// Add withExif flag for filter value searches
+	if withExif {
+		reqBody["withExif"] = true
 	}
 
 	// Add people filter if specified
@@ -148,22 +167,21 @@ func (c *Client) SearchWithFilters(ctx context.Context, query string, limit int,
 
 // GetCitySearch performs a search to get assets with location data for filter values.
 // Uses /api/search/metadata with withExif=true to get location information.
-// Note: This may not return all assets - consider using a large size limit or pagination
-// to get accurate counts for location filters.
+// Uses a large page size (1000) to get accurate counts for location filters.
 func (c *Client) GetCitySearch(ctx context.Context) ([]Asset, error) {
-	url := fmt.Sprintf("%s/api/search/metadata", c.baseURL)
-
-	// Use a large size to get more assets for accurate location counts
-	// In production, you might want to paginate through all results
-	reqBody := map[string]any{
-		"page":      1,
-		"size":      1000, // Large sample for location filter values
-		"isVisible": true,
-		"withExif":  true, // Only get assets with EXIF for location filters
-	}
-
-	var result SearchResponse
-	if err := c.doPost(ctx, url, reqBody, &result); err != nil {
+	result, err := c.doSearchRequest(
+		ctx,
+		"",    // No query
+		1000,  // Large size for accurate filter counts
+		1000,  // Use exact size (no default)
+		nil,   // No people filter
+		"",    // No country filter
+		"",    // No state filter
+		"",    // No city filter
+		"",    // No album filter
+		true,  // withExif=true to only get assets with location data
+	)
+	if err != nil {
 		return nil, fmt.Errorf("get city search failed: %w", err)
 	}
 
