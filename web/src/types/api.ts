@@ -72,6 +72,7 @@ export interface FilterOptionValue {
   value: string
   label: string
   count?: number
+  has_more?: boolean
 }
 
 export interface Provider {

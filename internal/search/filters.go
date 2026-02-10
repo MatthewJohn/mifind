@@ -43,20 +43,20 @@ type FilterDefinition struct {
 // FilterOption represents a single filter value option.
 type FilterOption struct {
 	// Value is the filter value
-	Value string
+	Value string `json:"value"`
 
 	// Label is the human-readable label
-	Label string
+	Label string `json:"label"`
 
 	// Count is the number of items with this value
-	Count int
+	Count int `json:"count"`
 
 	// Selected indicates if this option is currently selected
-	Selected bool
+	Selected bool `json:"selected"`
 
 	// HasMore indicates if more entities exist with this value than shown in Count.
 	// Used for provider-based filters to indicate partial results (e.g., "23+").
-	HasMore bool
+	HasMore bool `json:"has_more"`
 }
 
 // FilterResult contains available filters for a result set.

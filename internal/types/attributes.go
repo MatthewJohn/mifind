@@ -389,7 +389,7 @@ var (
 		Description:   "Country name",
 		AlwaysVisible: false,
 		UI: UIConfig{
-			Widget:   "multiselect",
+			Widget:   "select",
 			Icon:     "Map",
 			Group:    "metadata",
 			Label:    "Country",
@@ -414,7 +414,7 @@ var (
 		Description:   "State name",
 		AlwaysVisible: false,
 		UI: UIConfig{
-			Widget:   "multiselect",
+			Widget:   "select",
 			Icon:     "Map",
 			Group:    "metadata",
 			Label:    "State",
@@ -439,7 +439,7 @@ var (
 		Description:   "City name",
 		AlwaysVisible: false,
 		UI: UIConfig{
-			Widget:   "multiselect",
+			Widget:   "select",
 			Icon:     "Map",
 			Group:    "metadata",
 			Label:    "City",
@@ -500,6 +500,8 @@ var (
 			Cacheable:     true,
 			CacheTTL:      24 * time.Hour,
 			ProviderLevel: true, // Filtered by provider APIs (e.g., Immich, Google Photos)
+			ValueSource:   FilterValueProviderBased,
+			ShowZeroCount: true,
 		},
 	}
 
@@ -523,6 +525,8 @@ var (
 			Cacheable:     true,
 			CacheTTL:      24 * time.Hour,
 			ProviderLevel: true, // Filtered by provider APIs (e.g., Immich, Google Photos)
+			ValueSource:   FilterValueProviderBased,
+			ShowZeroCount: true,
 		},
 	}
 

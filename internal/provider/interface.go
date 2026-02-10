@@ -162,17 +162,17 @@ type FilterCapability struct {
 // FilterOption represents a single option for enumerated type filters.
 type FilterOption struct {
 	// Value is the option value
-	Value string
+	Value string `json:"value"`
 
 	// Label is the human-readable label
-	Label string
+	Label string `json:"label"`
 
 	// Count is the number of entities with this value (optional, for faceted search)
-	Count int
+	Count int `json:"count"`
 
 	// HasMore indicates if more entities exist with this value than shown in Count.
 	// Used for provider-based filters to indicate partial results (e.g., "23+").
-	HasMore bool
+	HasMore bool `json:"has_more"`
 }
 
 // Provider defines the interface that all data source providers must implement.
