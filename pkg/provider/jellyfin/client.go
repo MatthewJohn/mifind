@@ -14,18 +14,14 @@ import (
 type Client struct {
 	baseURL    string
 	apiKey     string
-	userID     string
-	deviceID   string
 	httpClient *http.Client
 }
 
 // NewClient creates a new Jellyfin API client.
-func NewClient(baseURL, apiKey, userID string) *Client {
+func NewClient(baseURL, apiKey string) *Client {
 	return &Client{
 		baseURL:  baseURL,
 		apiKey:   apiKey,
-		userID:   userID,
-		deviceID: "mifind-" + apiKey[:8], // Use part of API key as device ID
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -34,7 +30,7 @@ func NewClient(baseURL, apiKey, userID string) *Client {
 
 // Health checks if the Jellyfin server is accessible.
 func (c *Client) Health(ctx context.Context) error {
-	req, err := c.newRequest(ctx, "GET", "/Users/Me", nil)
+	req, err := c.newRequest(ctx, "GET", "/System/Info", nil)
 	if err != nil {
 		return err
 	}
@@ -135,7 +131,7 @@ func (c *Client) GetItems(ctx context.Context, params GetItemsParams) (*ItemsRes
 
 // GetItem retrieves a single item by ID.
 func (c *Client) GetItem(ctx context.Context, itemID string) (*Item, error) {
-	path := fmt.Sprintf("/Users/%s/Items/%s", c.userID, itemID)
+	path := fmt.Sprintf("/Items/%s", itemID)
 	req, err := c.newRequest(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, err
@@ -158,7 +154,6 @@ func (c *Client) GetGenres(ctx context.Context) ([]GenreItem, error) {
 	}
 
 	q := req.URL.Query()
-	q.Add("userId", c.userID)
 	q.Add("sortBy", "SortName")
 	q.Add("sortOrder", "Ascending")
 	req.URL.RawQuery = q.Encode()
@@ -180,7 +175,6 @@ func (c *Client) GetStudios(ctx context.Context) ([]StudioItem, error) {
 	}
 
 	q := req.URL.Query()
-	q.Add("userId", c.userID)
 	q.Add("sortBy", "SortName")
 	q.Add("sortOrder", "Ascending")
 	req.URL.RawQuery = q.Encode()
@@ -201,10 +195,6 @@ func (c *Client) GetSeasons(ctx context.Context, seriesID string) (*ItemsRespons
 		return nil, err
 	}
 
-	q := req.URL.Query()
-	q.Add("userId", c.userID)
-	req.URL.RawQuery = q.Encode()
-
 	var result ItemsResponse
 	if err := c.doRequest(req, &result); err != nil {
 		return nil, fmt.Errorf("get seasons failed: %w", err)
@@ -222,7 +212,6 @@ func (c *Client) GetEpisodes(ctx context.Context, seriesID, seasonID string) (*I
 	}
 
 	q := req.URL.Query()
-	q.Add("userId", c.userID)
 	q.Add("seasonId", seasonID)
 	req.URL.RawQuery = q.Encode()
 
@@ -273,14 +262,9 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body io.Re
 		return nil, err
 	}
 
-	// Jellyfin uses custom X-Emby-Authorization header
-	// Format: MediaBrowser Client="client", Device="device", DeviceId="deviceId", Version="version", Token="token"
-	authHeader := fmt.Sprintf(
-		`MediaBrowser Client="mifind", Device="mifind", DeviceId="%s", Version="1.0.0", Token="%s"`,
-		c.deviceID,
-		c.apiKey,
-	)
-	req.Header.Set("X-Emby-Authorization", authHeader)
+	// Jellyfin API authentication using X-Emby-Token header
+	// This is the modern/recommended approach (simpler than X-Emby-Authorization)
+	req.Header.Set("X-Emby-Token", c.apiKey)
 	req.Header.Set("Accept", "application/json")
 
 	return req, nil

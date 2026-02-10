@@ -55,11 +55,6 @@ func NewProvider() *Provider {
 					Required:    true,
 					Description: "Jellyfin API key",
 				},
-				"user_id": {
-					Type:        "string",
-					Required:    true,
-					Description: "Jellyfin user ID for user-specific content",
-				},
 			}),
 		}),
 	}
@@ -91,14 +86,8 @@ func (p *Provider) Initialize(ctx context.Context, config map[string]any) error 
 		return provider.NewProviderError(provider.ErrorTypeConfig, "api_key is required", nil)
 	}
 
-	// Get user ID
-	userID, ok := config["user_id"].(string)
-	if !ok || userID == "" {
-		return provider.NewProviderError(provider.ErrorTypeConfig, "user_id is required", nil)
-	}
-
 	// Create client
-	p.client = NewClient(jellyfinURL, apiKey, userID)
+	p.client = NewClient(jellyfinURL, apiKey)
 
 	// Test connection
 	if err := p.client.Health(ctx); err != nil {

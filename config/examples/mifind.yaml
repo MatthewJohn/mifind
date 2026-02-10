@@ -65,11 +65,9 @@ mock_entity_count: 100
 #   - instance_id: "movies"
 #     url: "https://jellyfin.example.com"
 #     api_key: "your-api-key-here"
-#     user_id: "your-user-id-here"
 #   - instance_id: "tv"
 #     url: "https://media.example.com"
 #     api_key: "another-api-key"
-#     user_id: "another-user-id"
 
 # GitLab providers (commented out - enable as needed)
 # Each instance connects to a GitLab server
