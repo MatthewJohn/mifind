@@ -753,15 +753,22 @@ func (h *Handlers) mergeFilterValues(
 		for _, providerOpt := range providerOptions {
 			resultCount := resultCounts[providerOpt.Value]
 
+			// For provider-based filters, fall back to provider total count when result count is 0
+			// (e.g., Immich location filters where exifInfo isn't included in search results)
+			displayCount := resultCount
+			if resultCount == 0 && providerOpt.Count > 0 {
+				displayCount = providerOpt.Count
+			}
+
 			// Skip if count is 0 and ShowZeroCount is false
-			if resultCount == 0 && !attrDef.Filter.ShowZeroCount {
+			if displayCount == 0 && !attrDef.Filter.ShowZeroCount {
 				continue
 			}
 
 			mergedOptions = append(mergedOptions, provider.FilterOption{
 				Value:   providerOpt.Value,
 				Label:   providerOpt.Label,
-				Count:   resultCount, // Use result count (0 if not in results)
+				Count:   displayCount,
 				HasMore: resultCount > 0 && resultCount < providerOpt.Count,
 			})
 		}
