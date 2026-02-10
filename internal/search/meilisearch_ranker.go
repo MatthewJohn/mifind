@@ -73,29 +73,15 @@ func (r *MeilisearchRanker) Rank(ctx context.Context, entities []EntityWithProvi
 		Strs("filters", mapKeys(query.Filters)).
 		Msg("Meilisearch Rank: starting")
 
-	// Step 1: Apply custom attribute filters in Go (before indexing)
-	filteredEntities := r.applyAttributeFilters(entities, query)
-
-	if len(filteredEntities) == 0 {
-		// No entities match the filters
-		r.logger.Debug().Msg("No entities after attribute filtering, returning empty results")
-		return []RankedEntity{}, nil
-	}
-
-	r.logger.Debug().
-		Int("input_entities", len(entities)).
-		Int("filtered_entities", len(filteredEntities)).
-		Msg("Applied attribute filters before Meilisearch ranking")
-
 	// Step 2: Index the filtered entities into Meilisearch (upsert, no clearing)
-	if err := r.indexEntities(ctx, filteredEntities); err != nil {
+	if err := r.indexEntities(ctx, entities); err != nil {
 		r.logger.Warn().Err(err).Msg("Failed to index entities, falling back to basic scoring")
-		return r.fallbackRanking(filteredEntities, query), nil
+		return r.fallbackRanking(entities, query), nil
 	}
 
 	// Step 3: Build Meilisearch search request with entity ID filter
 	// This ensures we only get results from the current search, not stale data
-	searchReq := r.buildSearchRequestWithIDs(query, filteredEntities)
+	searchReq := r.buildSearchRequestWithIDs(query, entities)
 
 	// Step 4: Execute search
 	// When provider-level filters are active (person, album, location), use wildcard search
@@ -111,15 +97,14 @@ func (r *MeilisearchRanker) Rank(ctx context.Context, entities []EntityWithProvi
 	searchResp, err := r.client.Search(searchQuery, searchReq)
 	if err != nil {
 		r.logger.Warn().Err(err).Msg("Meilisearch search failed, falling back to basic scoring")
-		return r.fallbackRanking(filteredEntities, query), nil
+		return r.fallbackRanking(entities, query), nil
 	}
 
 	// Step 5: Convert results back to RankedEntity
-	ranked := r.convertSearchResults(searchResp, filteredEntities, query)
+	ranked := r.convertSearchResults(searchResp, entities, query)
 
 	r.logger.Debug().
 		Int("input_entities", len(entities)).
-		Int("filtered_entities", len(filteredEntities)).
 		Int("meilisearch_hits", len(searchResp.Hits)).
 		Int("ranked_results", len(ranked)).
 		Dur("duration", time.Since(start)).
@@ -396,149 +381,6 @@ func (r *MeilisearchRanker) hasProviderLevelFilters(filters map[string]any) bool
 		}
 	}
 	return false
-}
-
-// applyAttributeFilters applies custom attribute filters to entities in Go.
-// This is done before indexing so Meilisearch only sees relevant entities.
-// NOTE: Excludes both provider-level filters (marked with ProviderLevel in attribute metadata)
-// AND "type" filter (entity.Type is a struct field, not entity.Attributes["type"]).
-// Provider-level filters are handled by providers via their APIs.
-// Type filter is handled by providers via query.Type field.
-func (r *MeilisearchRanker) applyAttributeFilters(entities []EntityWithProvider, query SearchQuery) []EntityWithProvider {
-	if len(query.Filters) == 0 {
-		return entities
-	}
-
-	allAttrs := r.typeRegistry.GetAllAttributes()
-
-	// Build entityFilters map excluding:
-	// 1. Provider-level filters (handled by providers)
-	// 2. "type" filter (entity.Type is a struct field, not an attribute)
-	entityFilters := make(map[string]any)
-	for key, val := range query.Filters {
-		if key == types.AttrType {
-			// Skip "type" filter - it's already applied at provider level
-			// via query.Type field, and entity.Type is a struct field
-			continue
-		}
-		if attrDef, exists := allAttrs[key]; !exists || !attrDef.Filter.ProviderLevel {
-			// Only include filters that are NOT provider-level
-			entityFilters[key] = val
-		}
-	}
-
-	if len(entityFilters) == 0 {
-		r.logger.Debug().
-			Strs("excluded_filters", mapKeys(query.Filters)).
-			Msg("No entity-level filters after excluding provider-level and type filters")
-		return entities
-	}
-
-	r.logger.Debug().
-		Strs("entity_filters", mapKeys(entityFilters)).
-		Int("input_entities", len(entities)).
-		Msg("Applying entity-level attribute filters")
-
-	filtered := make([]EntityWithProvider, 0, len(entities))
-	for _, entity := range entities {
-		if r.matchesFilters(entity.Entity, entityFilters) {
-			filtered = append(filtered, entity)
-		}
-	}
-
-	r.logger.Debug().
-		Int("filtered_entities", len(filtered)).
-		Int("filtered_out", len(entities)-len(filtered)).
-		Msg("Entity-level filter results")
-
-	return filtered
-}
-
-// matchesFilters checks if an entity matches the given attribute filters.
-func (r *MeilisearchRanker) matchesFilters(entity types.Entity, filters map[string]any) bool {
-	for key, filterVal := range filters {
-		entityVal, exists := entity.Attributes[key]
-		if !exists {
-			return false
-		}
-
-		// Simple equality check for most types
-		if !r.matchValues(entityVal, filterVal) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// matchValues checks if two values match.
-func (r *MeilisearchRanker) matchValues(entityVal, filterVal any) bool {
-	switch ev := entityVal.(type) {
-	case string:
-		if fv, ok := filterVal.(string); ok {
-			return ev == fv
-		}
-		return false
-	case int, int64:
-		fvInt, ok := asInt64(filterVal)
-		if !ok {
-			return false
-		}
-		return ev == int(fvInt)
-	case float64:
-		fvFloat, ok := filterVal.(float64)
-		if !ok {
-			return false
-		}
-		return ev == fvFloat
-	case bool:
-		fvBool, ok := filterVal.(bool)
-		if !ok {
-			return false
-		}
-		return ev == fvBool
-	case []string:
-		fvSlice, ok := filterVal.([]string)
-		if !ok {
-			// Check if filter value is in the entity slice
-			fvStr, ok := filterVal.(string)
-			if !ok {
-				return false
-			}
-			for _, item := range ev {
-				if item == fvStr {
-					return true
-				}
-			}
-			return false
-		}
-		// Check if slices have any overlap
-		for _, eItem := range ev {
-			for _, fItem := range fvSlice {
-				if eItem == fItem {
-					return true
-				}
-			}
-		}
-		return false
-	default:
-		// Fallback to string comparison
-		return fmt.Sprintf("%v", ev) == fmt.Sprintf("%v", filterVal)
-	}
-}
-
-// asInt64 converts a value to int64.
-func asInt64(v any) (int64, bool) {
-	switch val := v.(type) {
-	case int:
-		return int64(val), true
-	case int64:
-		return val, true
-	case float64:
-		return int64(val), true
-	default:
-		return 0, false
-	}
 }
 
 // fallbackRanking provides basic ranking when Meilisearch fails.
