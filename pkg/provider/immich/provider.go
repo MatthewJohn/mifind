@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -456,6 +457,10 @@ func (p *Provider) getLocationFilterOptions(ctx context.Context) ([]provider.Fil
 			Count: count,
 		})
 	}
+	sort.Slice(cityOptions, func(i, j int) bool {
+		return cityOptions[i].Label < cityOptions[j].Label
+	})
+
 	stateOptions := make([]provider.FilterOption, 0, len(stateMap))
 	for state, count := range stateMap {
 		stateOptions = append(stateOptions, provider.FilterOption{
@@ -464,6 +469,10 @@ func (p *Provider) getLocationFilterOptions(ctx context.Context) ([]provider.Fil
 			Count: count,
 		})
 	}
+	sort.Slice(stateOptions, func(i, j int) bool {
+		return stateOptions[i].Label < stateOptions[j].Label
+	})
+
 	countryOptions := make([]provider.FilterOption, 0, len(countryMap))
 	for country, count := range countryMap {
 		countryOptions = append(countryOptions, provider.FilterOption{
@@ -472,6 +481,10 @@ func (p *Provider) getLocationFilterOptions(ctx context.Context) ([]provider.Fil
 			Count: count,
 		})
 	}
+	sort.Slice(countryOptions, func(i, j int) bool {
+		return countryOptions[i].Label < countryOptions[j].Label
+	})
+
 	return countryOptions, stateOptions, cityOptions, nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -722,18 +723,14 @@ func (h *Handlers) mergeFilterValues(
 			continue
 		}
 
-		// For blank search, show all options with empty counts
+		// For blank search, show all provider options with their counts
 		if isBlankSearch {
-			blankOptions := make([]provider.FilterOption, len(providerOptions))
-			for i, opt := range providerOptions {
-				blankOptions[i] = provider.FilterOption{
-					Value:   opt.Value,
-					Label:   opt.Label,
-					Count:   0,
-					HasMore: false,
-				}
-			}
-			merged[attrName] = blankOptions
+			sortedOptions := make([]provider.FilterOption, len(providerOptions))
+			copy(sortedOptions, providerOptions)
+			sort.Slice(sortedOptions, func(i, j int) bool {
+				return sortedOptions[i].Label < sortedOptions[j].Label
+			})
+			merged[attrName] = sortedOptions
 			continue
 		}
 
@@ -769,6 +766,12 @@ func (h *Handlers) mergeFilterValues(
 				HasMore: resultCount > 0 && resultCount < providerOpt.Count,
 			})
 		}
+
+		// Sort merged options alphabetically
+		sort.Slice(mergedOptions, func(i, j int) bool {
+			return mergedOptions[i].Label < mergedOptions[j].Label
+		})
+
 		merged[attrName] = mergedOptions
 	}
 
